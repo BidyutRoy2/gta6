@@ -4,30 +4,36 @@
 [![rank](https://make.fun/badge/gta6-01/BidyutRoy2/gta6/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/BidyutRoy2/gta6/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-An original open-world crime game in plain canvas 2D. No Rockstar assets, names,
-or art — everything here is invented: the sun-soaked coastal city of Solmar,
-courier driver Dana "Dash" Cole, Vega Transport, The Marlin Club, and the Solmar PD.
+SOLMAR is a top-down open-world crime game drawn entirely on a plain 2D
+canvas. Nothing in it comes from Rockstar — no assets, no names, no artwork.
+The city of Solmar, its people and its story are all invented here: a bright
+coastal town where courier driver Dana "Dash" Cole works for Vega Transport,
+crosses paths with The Marlin Club, and ends up on the wrong side of the
+Solmar PD.
 
 ## The game
 
-Dana Cole drives courier jobs for Vega Transport and gets pulled into The Marlin
-Club's smuggling ring, ending in a heist against corp boss Harlan Vega. Eight
-story missions with payouts, a wanted system with police chases, car stealing
-and driving, on-foot combat, traffic and pedestrians, a minimap HUD, a garage
-shop where cash buys repairs, ammo and a faster car, and a save system.
+Dana starts out running ordinary courier jobs, then gets drawn into the
+Marlin Club's smuggling operation, and the story builds toward a heist
+against corporate boss Harlan Vega. There are eight story missions, each
+paying cash on completion, plus a wanted system that sends police after you,
+cars you can steal and drive, hand-to-hand combat on foot, busy traffic and
+pedestrians on the streets, a minimap HUD, a garage shop where earned cash
+buys repairs, ammo and a faster car, and a save system that keeps your
+progress.
 
 ## How to play
 
-- **WASD / arrows** — move on foot, drive when in a car
-- **E** — enter / exit a car (walk up to a parked car and steal it)
-- **Mouse click** — shoot (once you have a pistol, from Mission 3)
+- **WASD / arrows** — walk on foot; drive once you are in a car
+- **E** — get in or out of a car (step up to a parked car to steal it)
+- **Mouse click** — fire your weapon (you get a pistol from Mission 3)
 - **F** — punch
-- **B** — garage shop (near the garage marker)
+- **B** — open the garage shop (stand near the garage marker)
 - **P / Esc** — pause, **M** — mute
 
-Missions run in order from the start screen. Cash earned buys upgrades. Lose
-the cops to drop your wanted level; get arrested or run out of health and the
-mission restarts.
+You take the missions in order from the start screen. The cash you earn can
+be spent on upgrades. Shake off the police to bring your wanted level back
+down — if you are arrested or your health runs out, the mission starts over.
 
 ## Run it
 
@@ -35,13 +41,14 @@ mission restarts.
 node serve.ts
 ```
 
-then open http://localhost:8080. No build step, no network, no libraries —
-everything under `game/` is plain static files.
+then open http://localhost:8080. There is no build step, no network access and
+no libraries — everything under `game/` is plain static files.
 
 ## Screenshots
 
-`?shot=cover|street|mission|menu&seed=7` stages deterministic scenes of the
-game for screenshots; `shots.json` lists the four shipped shots.
+`?shot=cover|street|mission|menu&seed=7` sets up repeatable scenes of the
+game for taking screenshots; `shots.json` lists the four shots that ship
+with the repo.
 
 ## License
 
