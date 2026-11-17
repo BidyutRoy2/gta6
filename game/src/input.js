@@ -9,6 +9,7 @@ export const ACTION_PUNCH = 8;
 export const ACTION_SHOP = 16;
 export const ACTION_MUTE = 32;
 export const ACTION_SHOOT = 64;
+export const ACTION_TAXI = 128;
 
 const UP = new Set(['ArrowUp', 'KeyW']);
 const DOWN = new Set(['ArrowDown', 'KeyS']);
@@ -19,6 +20,7 @@ const PAUSE = new Set(['KeyP', 'Escape']);
 const INTERACT = new Set(['KeyE']);
 const PUNCH = new Set(['KeyF']);
 const SHOP = new Set(['KeyB']);
+const TAXI = new Set(['KeyT']);
 const MUTE = new Set(['KeyM']);
 
 export function createInput(canvas) {
@@ -43,13 +45,14 @@ export function createInput(canvas) {
     else if (INTERACT.has(event.code)) queue(ACTION_INTERACT, event);
     else if (PUNCH.has(event.code)) queue(ACTION_PUNCH, event);
     else if (SHOP.has(event.code)) queue(ACTION_SHOP, event);
+    else if (TAXI.has(event.code)) queue(ACTION_TAXI, event);
     else if (MUTE.has(event.code)) queue(ACTION_MUTE, event);
-    else if (/^Digit[1-4]$/.test(event.code)) numberKeys.add(event.code);
+    else if (/^Digit[1-5]$/.test(event.code)) numberKeys.add(event.code);
     if (event.code === 'KeyS' && !event.repeat) newGame = true;
   });
   window.addEventListener('keyup', (event) => {
     held.delete(event.code);
-    if (/^Digit[1-4]$/.test(event.code)) numberKeys.delete(event.code);
+    if (/^Digit[1-5]$/.test(event.code)) numberKeys.delete(event.code);
   });
   window.addEventListener('blur', () => {
     held.clear();

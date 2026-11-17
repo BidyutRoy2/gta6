@@ -27,11 +27,15 @@ export function makeCar(x, y, angle, model, police) {
 
 export function spawnCars(city, rng) {
   const cars = [];
-  // Parked cars along road edges, angled to the kerb.
+  // Parked cars along road edges, angled to the kerb. The first two are
+  // fixed so the city always has the new Sunset Roadster and a working
+  // Solmar Taxi to steal; the roll is still drawn so the seed stream — and
+  // every car after these — stays exactly where it was.
   for (let i = 0; i < 16; i += 1) {
     const p = randomRoadPoint(city, rng);
     const vertical = rng() < 0.5;
-    const model = CAR_MODELS[Math.floor(rng() * CAR_MODELS.length)];
+    const roll = Math.floor(rng() * CAR_MODELS.length);
+    const model = i === 0 ? CAR_MODELS[6] : i === 1 ? CAR_MODELS[1] : CAR_MODELS[roll];
     const x = vertical ? p.x + (rng() < 0.5 ? -34 : 34) : p.x;
     const y = vertical ? p.y : p.y + (rng() < 0.5 ? -34 : 34);
     if (hitsBuilding(city, x, y, 30)) continue;

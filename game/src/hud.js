@@ -1,7 +1,7 @@
 // The HUD: wanted stars, health and cash, speed, the objective line, the
 // minimap (drawn from the same city data as the world), banners, and the
 // garage shop. All of it is canvas text and shapes — no DOM, no images.
-import { CITY, FONT, PALETTE, VIEW } from './config.js';
+import { CITY, FONT, PALETTE, TAXI, VIEW } from './config.js';
 
 const MINI = { w: 196, h: 148, x: 0, y: 0 };
 
@@ -48,6 +48,28 @@ export function drawMinimap(ctx, game) {
     ctx.textAlign = 'center';
     ctx.fillText('!', sx(obj.target.x), sy(obj.target.y) - 5.5);
   }
+  // Taxi fare markers: green pickup, gold drop-off.
+  if (game.taxi) {
+    if (game.taxi.state === 'pickup' && game.taxi.pickup) {
+      ctx.fillStyle = '#5fd67f';
+      ctx.beginPath();
+      ctx.arc(sx(game.taxi.pickup.x), sy(game.taxi.pickup.y), 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (game.taxi.state === 'dropoff' && game.taxi.dropoff) {
+      ctx.fillStyle = PALETTE.waypoint;
+      ctx.beginPath();
+      ctx.arc(sx(game.taxi.dropoff.x), sy(game.taxi.dropoff.y), 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Hidden packages as small gold dots.
+  if (game.packages) {
+    ctx.fillStyle = '#ffd23f';
+    for (const pkg of game.packages) {
+      if (!pkg.collected) ctx.fillRect(sx(pkg.x) - 1.5, sy(pkg.y) - 1.5, 3, 3);
+    }
+  }
   // Police as blue dots, traffic as white, the player as a gold arrow.
   for (const car of game.cars) {
     if (car.driver === 'player') continue;
@@ -91,9 +113,10 @@ export function drawHud(ctx, game) {
   ctx.lineWidth = 1;
   ctx.strokeRect(18, 66, 170, 16);
   text(ctx, `HP ${Math.max(0, Math.ceil(player.health))}`, 194, 67, 14, PALETTE.text, 'left', true);
-  // Cash and ammo.
+  // Cash, ammo and the hidden-package count.
   text(ctx, `$${player.cash}`, 18, 90, 22, PALETTE.cash, 'left', true);
   if (player.hasGun) text(ctx, `Ammo ${player.ammo}`, 18, 116, 15, PALETTE.text, 'left');
+  text(ctx, `Packages ${game.packagesCollected || 0}/10  •  +$100 each`, 18, 140, 14, '#ffd23f', 'left', true);
   // Speed, bottom-right, only while driving.
   if (player.car) {
     const mph = Math.round(Math.abs(player.car.speed) * 0.55);
@@ -124,6 +147,12 @@ export function drawHud(ctx, game) {
     text(ctx, `⏱ ${mm}:${ss}`, VIEW.width - 20, 178, 20, col, 'right', true);
     text(ctx, `Payout $${game.mission.def.payout}`, VIEW.width - 20, 202, 14, PALETTE.cash, 'right', true);
   }
+  // Taxi fare status, under the mission timer.
+  if (game.taxi && game.taxi.state === 'dropoff' && game.taxi.dropoff) {
+    text(ctx, `Taxi fare $${game.taxi.fare} → ${game.taxi.dropoff.label}`, VIEW.width - 20, 226, 14, '#5fd67f', 'right', true);
+  } else if (game.taxi && game.taxi.state === 'pickup' && game.taxi.pickup) {
+    text(ctx, `Taxi: fare waiting at ${game.taxi.pickup.label}`, VIEW.width - 20, 226, 14, '#5fd67f', 'right', true);
+  }
   // Progress bars for wait / chase steps.
   if (game.waitProgress > 0) {
     const w = 260;
@@ -150,6 +179,13 @@ export function drawHud(ctx, game) {
   }
   if (game.nearGarage && !game.shopOpen) {
     text(ctx, 'Press B for the garage shop', VIEW.width / 2, VIEW.height - 140, 17, PALETTE.waypoint, 'center', true);
+  }
+  // Taxi pickup prompt, in a taxi near the waiting fare.
+  if (game.taxi && game.taxi.state === 'pickup' && game.taxi.pickup && player.car && player.car.model.name === 'Solmar Taxi') {
+    const d = Math.hypot(player.car.x - game.taxi.pickup.x, player.car.y - game.taxi.pickup.y);
+    if (d < TAXI.pickupRadius) {
+      text(ctx, 'Press T to pick up the fare', VIEW.width / 2, VIEW.height - 140, 17, '#5fd67f', 'center', true);
+    }
   }
   // Banner, centre screen.
   if (game.banner && game.banner.t > 0) {
@@ -200,5 +236,5 @@ export function drawShop(ctx, game) {
     y += 36;
   });
   y += 12;
-  text(ctx, 'Press 1–4 to buy, B or Esc to leave', VIEW.width / 2, y, 15, PALETTE.muted, 'center');
+  text(ctx, 'Press 1–5 to buy, B or Esc to leave', VIEW.width / 2, y, 15, PALETTE.muted, 'center');
 }

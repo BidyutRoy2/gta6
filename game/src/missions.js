@@ -1,4 +1,4 @@
-// The story: eight missions for Dana "Dash" Cole, courier driver for Vega
+// The story: ten missions for Dana "Dash" Cole, courier driver for Vega
 // Transport, pulled into The Marlin Club and out the other side with a heist.
 // Each mission is a list of steps; the updater watches the world and advances
 // them, pays out on completion, and fails a mission when its timer runs out.
@@ -66,8 +66,26 @@ export const MISSIONS = [
     briefing: 'This is it. Crack the Solmar Bank, take Vega\'s money, and run for the escape boat on the south beach. The whole PD will be coming. Make it count, Dash.',
     steps: [
       { type: 'goto', place: 'bank', text: 'Reach the Solmar Bank' },
-      { type: 'hold', place: 'bank', seconds: 10, text: 'Crack the vault — hold position 10s' },
+      { type: 'hold', place: 'bank', seconds: 10, heat: 4, heatAt: 2, heatMessage: 'Alarm tripped! The whole PD is coming!', text: 'Crack the vault — hold position 10s' },
       { type: 'goto', place: 'boat', text: 'Escape to the boat on the south beach!' },
+    ],
+  },
+  {
+    id: 9, name: "Vega's Revenge", payout: 1800, timer: 240,
+    briefing: 'The heist money is safe, but Harlan Vega is not done. His enforcers torched the Club\'s stash house on the north side. Get the stash out before the fire crews — and Vega\'s men — get to it.',
+    steps: [
+      { type: 'goto', place: 'stash', text: 'Reach the Stash House' },
+      { type: 'hold', place: 'stash', seconds: 8, heatOnComplete: 2, heatOnCompleteMessage: "Vega's men spotted you — run!", text: 'Load the stash — hold position 8s' },
+      { type: 'goto', place: 'club', text: 'Bring the stash to The Marlin Club' },
+    ],
+  },
+  {
+    id: 10, name: 'The Last Tide', payout: 6000, timer: 300,
+    briefing: 'Vega is leaving Solmar tonight on his yacht, with the Club\'s ledger and a gun. Take the ledger back at the south beach — then bring it home to the Club. End this, Dash.',
+    steps: [
+      { type: 'goto', place: 'yacht', text: "Reach Vega's yacht on the south beach" },
+      { type: 'hold', place: 'yacht', seconds: 10, heat: 4, heatAt: 2, heatMessage: "Vega's guards are coming — hold the yacht!", text: 'Take the ledger back — hold the yacht 10s' },
+      { type: 'goto', place: 'club', text: 'Bring the ledger home to The Marlin Club' },
     ],
   },
 ];
@@ -210,14 +228,23 @@ export function updateMissions(game, dt) {
     if (d < 80) {
       m.waitT += dt;
       game.waitProgress = m.waitT / step.seconds;
-      if (step.type === 'hold' && m.waitT >= 2 && !m.heistHeat) {
-        m.heistHeat = true;
-        game.addWanted(4);
-        game.message = 'Alarm tripped! The whole PD is coming!';
+      // A hold step can raise the heat part-way through (the vault alarm,
+      // Vega's guards): same timing the heist always had, now per-step.
+      if (step.heat && m.waitT >= (step.heatAt || 2) && !m.heatRaised) {
+        m.heatRaised = true;
+        game.addWanted(step.heat);
+        game.message = step.heatMessage || 'The heat is coming!';
         game.messageT = 3;
       }
       if (m.waitT >= step.seconds) {
         game.waitProgress = 0;
+        // A hold step can also bring the heat the moment it finishes
+        // (spotted loading the stash): the escape starts hot.
+        if (step.heatOnComplete) {
+          game.addWanted(step.heatOnComplete);
+          game.message = step.heatOnCompleteMessage || 'Spotted — run!';
+          game.messageT = 3;
+        }
         advanceStep(game);
         if (m.step >= m.def.steps.length) {
           completeMission(game);

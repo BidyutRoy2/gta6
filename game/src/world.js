@@ -105,6 +105,8 @@ export function buildCity(rng) {
       hospital: { x: 600, y: 1400, label: 'Solmar Clinic' },
       dropA: { x: 2600, y: 600, label: 'Drop: Marina Flats' },
       dropB: { x: 1000, y: 1800, label: 'Drop: Old Cannery' },
+      stash: { x: 600, y: 1000, label: 'Stash House' },
+      yacht: { x: 200, y: 2080, label: "Vega's Yacht" },
     },
   };
 

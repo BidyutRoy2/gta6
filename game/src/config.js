@@ -41,6 +41,7 @@ export const CAR_MODELS = [
   { name: 'Pelican Coupe', top: 340, color: '#3f7fb8', length: 48, width: 24 },
   { name: 'Dune Pickup', top: 280, color: '#5d8a4a', length: 56, width: 27 },
   { name: 'Harbor Cruiser', top: 250, color: '#8a5f9e', length: 54, width: 27 },
+  { name: 'Sunset Roadster', top: 360, color: '#e07b39', length: 50, width: 25 },
 ];
 
 export const POLICE_MODEL = { name: 'Solmar PD Interceptor', top: 330, color: '#2b3a4d', length: 52, width: 26 };
@@ -69,6 +70,21 @@ export const POLICE = {
 };
 
 export const BULLET = { speed: 720, life: 0.9, damage: 34 };
+
+// Side activities: taxi fares and hidden packages.
+export const TAXI = {
+  pickupRadius: 90,
+  dropoffRadius: 90,
+  fareBase: 60,
+  farePerMetre: 1 / 25, // +$1 per 25px of trip, capped below
+  fareMax: 200,
+};
+
+export const PACKAGES = {
+  count: 10,
+  value: 100,
+  collectRadius: 42,
+};
 
 export const PALETTE = {
   grass: '#7fae62',

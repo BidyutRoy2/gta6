@@ -378,6 +378,60 @@ export function createRenderer(canvas) {
     text(prompt, VIEW.width / 2, y + h - 44, 19, PALETTE.waypoint, 'center', true);
   }
 
+  function drawActivityMarkers(game, cam) {
+    // Taxi fare markers: a green ring at the waiting passenger, a gold
+    // ring at the drop-off.
+    const taxi = game.taxi;
+    if (taxi) {
+      if (taxi.state === 'pickup' && taxi.pickup) {
+        const p = taxi.pickup;
+        const pulse = 1 + Math.sin(game.time * 5) * 0.15;
+        ctx.strokeStyle = '#5fd67f';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 46 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(95, 214, 127, 0.18)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 46 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        text('TAXI', p.x, p.y - 58, 14, '#5fd67f', 'center', true);
+      }
+      if (taxi.state === 'dropoff' && taxi.dropoff) {
+        const p = taxi.dropoff;
+        const pulse = 1 + Math.sin(game.time * 5) * 0.15;
+        ctx.strokeStyle = PALETTE.waypoint;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 46 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,210,63,0.18)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 46 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        text('DROP-OFF', p.x, p.y - 58, 14, PALETTE.waypoint, 'center', true);
+      }
+    }
+    // Hidden packages: small gold crates with a glint.
+    if (game.packages) {
+      for (const pkg of game.packages) {
+        if (pkg.collected) continue;
+        if (pkg.x < cam.x - 30 || pkg.x > cam.x + VIEW.width + 30) continue;
+        if (pkg.y < cam.y - 30 || pkg.y > cam.y + VIEW.height + 30) continue;
+        const glint = 0.6 + Math.sin(game.time * 3 + pkg.id) * 0.4;
+        ctx.fillStyle = `rgba(255, 210, 63, ${0.25 + glint * 0.25})`;
+        ctx.beginPath();
+        ctx.arc(pkg.x, pkg.y, 16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e8b93a';
+        ctx.fillRect(pkg.x - 8, pkg.y - 7, 16, 14);
+        ctx.fillStyle = '#8a6a1a';
+        ctx.fillRect(pkg.x - 8, pkg.y - 1.5, 16, 3);
+        ctx.fillRect(pkg.x - 1.5, pkg.y - 7, 3, 14);
+      }
+    }
+  }
+
   function drawTitle(game) {
     // The city keeps living behind the title: traffic drives, peds walk.
     const cam = game.camera;
@@ -386,7 +440,8 @@ export function createRenderer(canvas) {
     ctx.translate(-cam.x, -cam.y);
     drawGround(game, cam);
     drawBuildings(game, cam);
-    for (const car of game.cars) if (car.driver === 'traffic') drawCarShape(car);
+    drawActivityMarkers(game, cam);
+    for (const car of game.cars) drawCarShape(car);
     for (const ped of game.peds) drawPed(ped);
     ctx.restore();
     // Sun-soaked gradient wash over the scene.
@@ -400,9 +455,9 @@ export function createRenderer(canvas) {
     text('A SUN-SOAKED OPEN-WORLD CRIME STORY', VIEW.width / 2, 156, 20, PALETTE.text, 'center', true);
     text('Dana "Dash" Cole • Vega Transport • The Marlin Club • Solmar PD', VIEW.width / 2, 186, 16, PALETTE.muted, 'center');
     const lines = [
-      'Eight missions. Steal cars, lose the cops, pull the Solmar Heist.',
+      'Ten missions. Steal cars, lose the cops, take down Harlan Vega.',
       'WASD / arrows to move & drive • E to steal a car • Click to shoot • F to punch',
-      'B for the garage shop • P to pause • M to mute',
+      'T for taxi fares • B for the garage shop • P to pause • M to mute',
     ];
     if (game.hasSave) lines.push(`Save found: Mission ${game.saveMission} — press Enter to continue, or S for a new game`);
     else lines.push(`Best cash so far: $${game.bestCash}`);
@@ -418,6 +473,7 @@ export function createRenderer(canvas) {
     ctx.translate(-cam.x + shakeX, -cam.y + shakeY);
     drawGround(game, cam);
     drawWaypoint(game, cam);
+    drawActivityMarkers(game, cam);
     drawBuildings(game, cam);
     for (const car of game.cars) drawCarShape(car);
     for (const ped of game.peds) drawPed(ped);
@@ -459,7 +515,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_COMPLETE) {
       ctx.fillStyle = 'rgba(6,10,14,0.6)';
       ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-      drawPanel('THE SOLMAR HEIST', ['You cracked the bank, outran the whole PD,', 'and sailed out on the tide with Vega\'s money.', `Final cash: $${game.player.cash} • All 8 missions complete`, 'Dana "Dash" Cole — legend of Solmar.'], 'Press Enter to keep playing the city');
+      drawPanel('SOLMAR LEGEND', ['You cracked the bank, took the ledger off Vega\'s yacht,', 'and brought it home to the Marlin Club.', `Final cash: $${game.player.cash} • All 10 missions complete`, 'Dana "Dash" Cole — legend of Solmar.'], 'Press Enter to keep playing the city');
     }
   }
 
