@@ -1,5 +1,6 @@
-// The story: ten missions for Dana "Dash" Cole, courier driver for Vega
-// Transport, pulled into The Marlin Club and out the other side with a heist.
+// The story: twelve missions for Dana "Dash" Cole, courier driver for Vega
+// Transport, pulled into The Marlin Club and out the other side with a heist,
+// then back for one last run — and for Harlan Vega himself.
 // Each mission is a list of steps; the updater watches the world and advances
 // them, pays out on completion, and fails a mission when its timer runs out.
 import { CAR_MODELS } from './config.js';
@@ -88,6 +89,23 @@ export const MISSIONS = [
       { type: 'goto', place: 'club', text: 'Bring the ledger home to The Marlin Club' },
     ],
   },
+  {
+    id: 11, name: 'The Marlin Run', payout: 2400, timer: 240,
+    briefing: 'The Club has a new buyer, no questions asked, and a tuned Marlin Sedan waiting at the Solmar Garage. Pick the car up and deliver it to Marina Flats. Don\'t scratch it — the buyer is paying for perfect.',
+    steps: [
+      { type: 'goto', place: 'garage', text: "Pick up the Club's tuned car at the Solmar Garage" },
+      { type: 'goto', place: 'dropA', needCar: true, text: 'Deliver the car to the buyer at Marina Flats' },
+    ],
+  },
+  {
+    id: 12, name: "Vega's Last Stand", payout: 7500, timer: 300,
+    briefing: 'Harlan Vega is back in Solmar with his last crew, holed up at his vault. Tail his getaway car, corner him at the vault, and bring him in. End this for good, Dash.',
+    steps: [
+      { type: 'chase', seconds: 15, text: "Tail Vega's getaway car — stay within range 15s" },
+      { type: 'hold', place: 'vault', seconds: 10, heat: 4, heatAt: 2, heatMessage: "Vega's enforcers are coming — hold the vault!", text: 'Corner Vega at the vault — hold 10s' },
+      { type: 'goto', place: 'club', text: 'Bring Vega in — deliver him to the Club' },
+    ],
+  },
 ];
 
 export function missionByIndex(index) {
@@ -123,6 +141,23 @@ export function startMission(game, index) {
     };
     game.cars.push(car);
     game.mission.targetCar = car;
+    game.mission.route = [
+      { x: 600, y: 200 }, { x: 2600, y: 200 }, { x: 2600, y: 600 }, { x: 600, y: 600 },
+    ];
+  }
+  if (def.id === 12) {
+    // Harlan Vega himself, fleeing in a black coupe on the south loop.
+    const car = {
+      id: 9002, x: 600, y: 1800, angle: 0, speed: 150,
+      model: CAR_MODELS[3], color: '#1d2733', length: 48, width: 24,
+      radius: 26, police: false, parked: false, driver: 'vega',
+      axis: 'h', dir: 1, cruise: 150, brake: 0, damage: 0, siren: 0,
+    };
+    game.cars.push(car);
+    game.mission.targetCar = car;
+    game.mission.route = [
+      { x: 600, y: 1800 }, { x: 2600, y: 1800 }, { x: 2600, y: 1000 }, { x: 600, y: 1000 },
+    ];
   }
   return true;
 }
@@ -258,10 +293,11 @@ export function updateMissions(game, dt) {
   } else if (step.type === 'chase') {
     const car = m.targetCar;
     if (car) {
-      // The courier drives the north loop at a steady cruise.
+      // The target drives its loop at a steady cruise: the courier's north
+      // loop for mission 7, Vega's south loop for mission 12.
       car.x += Math.cos(car.angle) * car.speed * dt;
       car.y += Math.sin(car.angle) * car.speed * dt;
-      const route = [
+      const route = m.route || [
         { x: 600, y: 200 }, { x: 2600, y: 200 }, { x: 2600, y: 600 }, { x: 600, y: 600 },
       ];
       const node = route[m.routeNode || 0];

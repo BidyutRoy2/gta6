@@ -42,6 +42,7 @@ export const CAR_MODELS = [
   { name: 'Dune Pickup', top: 280, color: '#5d8a4a', length: 56, width: 27 },
   { name: 'Harbor Cruiser', top: 250, color: '#8a5f9e', length: 54, width: 27 },
   { name: 'Sunset Roadster', top: 360, color: '#e07b39', length: 50, width: 25 },
+  { name: 'Vega Phantom', top: 390, color: '#e8e8e8', length: 50, width: 25 },
 ];
 
 export const POLICE_MODEL = { name: 'Solmar PD Interceptor', top: 330, color: '#2b3a4d', length: 52, width: 26 };
@@ -84,6 +85,24 @@ export const PACKAGES = {
   count: 10,
   value: 100,
   collectRadius: 42,
+};
+
+// Street races: a white start ring on the north road, three checkpoint
+// rings around the city, back to the start. Free roam only — a race never
+// starts while a mission is running.
+export const RACE = {
+  start: { x: 1000, y: 200, label: 'Race Start' },
+  checkpoints: [
+    { x: 2600, y: 200, label: 'Checkpoint 1' },
+    { x: 2600, y: 1400, label: 'Checkpoint 2' },
+    { x: 1000, y: 1400, label: 'Checkpoint 3' },
+  ],
+  startRadius: 60,
+  cpRadius: 70,
+  perCheckpoint: 150,
+  finishBonus: 1000,
+  timer: 100,
+  cooldown: 8,
 };
 
 export const PALETTE = {

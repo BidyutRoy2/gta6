@@ -1,7 +1,7 @@
 // The HUD: wanted stars, health and cash, speed, the objective line, the
 // minimap (drawn from the same city data as the world), banners, and the
 // garage shop. All of it is canvas text and shapes — no DOM, no images.
-import { CITY, FONT, PALETTE, TAXI, VIEW } from './config.js';
+import { CITY, FONT, PALETTE, RACE, TAXI, VIEW } from './config.js';
 
 const MINI = { w: 196, h: 148, x: 0, y: 0 };
 
@@ -69,6 +69,21 @@ export function drawMinimap(ctx, game) {
     for (const pkg of game.packages) {
       if (!pkg.collected) ctx.fillRect(sx(pkg.x) - 1.5, sy(pkg.y) - 1.5, 3, 3);
     }
+  }
+  // Street race: the start ring as a white dot, checkpoints cyan — the
+  // next one pulsing, finished ones dimmed.
+  if (game.race) {
+    ctx.fillStyle = '#f4efe4';
+    ctx.fillRect(sx(RACE.start.x) - 2, sy(RACE.start.y) - 2, 4, 4);
+    RACE.checkpoints.forEach((cp, i) => {
+      const isNext = game.race.state === 'active' && game.race.next === i;
+      const done = game.race.state === 'active' && game.race.next > i;
+      ctx.fillStyle = done ? 'rgba(127,184,255,0.4)' : '#7fb8ff';
+      const r = isNext ? 3.5 : 2.5;
+      ctx.beginPath();
+      ctx.arc(sx(cp.x), sy(cp.y), r, 0, Math.PI * 2);
+      ctx.fill();
+    });
   }
   // Police as blue dots, traffic as white, the player as a gold arrow.
   for (const car of game.cars) {
@@ -153,6 +168,16 @@ export function drawHud(ctx, game) {
   } else if (game.taxi && game.taxi.state === 'pickup' && game.taxi.pickup) {
     text(ctx, `Taxi: fare waiting at ${game.taxi.pickup.label}`, VIEW.width - 20, 226, 14, '#5fd67f', 'right', true);
   }
+  // Street race status, under the taxi line.
+  if (game.race && game.race.state === 'active') {
+    const t = Math.max(0, Math.ceil(game.race.timer));
+    const mm = Math.floor(t / 60);
+    const ss = String(t % 60).padStart(2, '0');
+    const leg = game.race.next < RACE.checkpoints.length
+      ? `Checkpoint ${game.race.next + 1}/3`
+      : 'Finish: back to the start!';
+    text(ctx, `🏁 Race ${leg} — ${mm}:${ss}`, VIEW.width - 20, 250, 14, '#7fb8ff', 'right', true);
+  }
   // Progress bars for wait / chase steps.
   if (game.waitProgress > 0) {
     const w = 260;
@@ -219,7 +244,7 @@ export function drawShop(ctx, game) {
   ctx.fillRect(0, 0, VIEW.width, VIEW.height);
   ctx.fillStyle = PALETTE.panel;
   const w = 560;
-  const h = 320;
+  const h = 180 + items.length * 36;
   ctx.fillRect((VIEW.width - w) / 2, (VIEW.height - h) / 2, w, h);
   ctx.fillStyle = PALETTE.panelEdge;
   ctx.fillRect((VIEW.width - w) / 2, (VIEW.height - h) / 2, w, 3);
@@ -236,5 +261,5 @@ export function drawShop(ctx, game) {
     y += 36;
   });
   y += 12;
-  text(ctx, 'Press 1–5 to buy, B or Esc to leave', VIEW.width / 2, y, 15, PALETTE.muted, 'center');
+  text(ctx, `Press 1–${items.length} to buy, B or Esc to leave`, VIEW.width / 2, y, 15, PALETTE.muted, 'center');
 }

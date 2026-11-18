@@ -92,14 +92,19 @@ export function stageShot(name, game) {
   game.banner = null;
   game.messageT = 0;
   if (name === 'cover') {
-    // A police chase at 3 stars in the new Sunset Roadster: three PD cars
-    // closing in, the wanted stars, the minimap, a live mission objective,
-    // a taxi fare in progress and a hidden package in the frame.
-    startMission(game, 3);
+    // Mission 12's finale chase at 3 stars in the new Vega Phantom: Vega's
+    // getaway car ahead, three PD cars closing in, the wanted stars, the
+    // minimap, a live race, a taxi fare in progress and a hidden package.
+    startMission(game, 11);
     game.mission.timer = 0; // the chase shot has no countdown
-    putPlayerInCar(game, 1400, 1000, 0, 6, 260);
+    // Vega's car, placed ahead of the player so the chase ring is in frame.
+    if (game.mission.targetCar) {
+      game.mission.targetCar.x = 1150;
+      game.mission.targetCar.y = 850;
+      game.mission.targetCar.angle = 0;
+    }
+    putPlayerInCar(game, 1400, 1000, 0, 7, 260);
     addWanted(game, 3);
-    game.mission.step = 1; // 3 stars already raised: the chase is the escape
     placePolice(game, [
       { x: 1180, y: 1000, angle: 0, speed: 280 },
       { x: 1400, y: 820, angle: Math.PI / 2, speed: 250 },
@@ -107,24 +112,25 @@ export function stageShot(name, game) {
     ]);
     stageTaxi(game, 'dropoff', { key: 'club', x: 1800, y: 1000, label: 'The Marlin Club' }, 140);
     stagePackage(game, 0, 1400, 1150);
+    game.race = { state: 'active', next: 1, timer: 87, cooldown: 0 };
     game.player.health = 82;
-    game.player.cash = 1450;
+    game.player.cash = 20850;
     game.banner = null;
-    game.message = 'Lose the cops — get back to 0 stars';
+    game.message = "Tail Vega's getaway car — stay within range 15s";
     game.messageT = 99;
     centreCamera(game);
     return { screen: SCREEN_PLAY };
   }
   if (name === 'street') {
     // On foot by the Solmar Garage: traffic on the roads, locals on the
-    // sidewalks, a parked Sunset Roadster, a taxi fare waiting at the
+    // sidewalks, a parked Vega Phantom, a taxi fare waiting at the
     // garage, a hidden package on the road, and the shop prompt.
     game.player.x = 1040;
     game.player.y = 660;
     game.player.angle = 0;
     game.player.cash = 250;
     game.nearGarage = true; // the shop prompt is computed in the live loop; stage it here
-    parkCar(game, 1000, 820, Math.PI / 2, 6);
+    parkCar(game, 1000, 820, Math.PI / 2, 7);
     stageTaxi(game, 'pickup', { key: 'garage', x: 1000, y: 600, label: 'Solmar Garage' });
     stagePackage(game, 1, 1000, 700);
     game.message = 'Explore Solmar — steal a car with E, hail a taxi fare with T, find the hidden packages';
@@ -133,13 +139,16 @@ export function stageShot(name, game) {
     return { screen: SCREEN_PLAY };
   }
   if (name === 'mission') {
-    // Mission 9 in progress: the Stash House waypoint, the timer and the
-    // $1,800 payout, the pistol, a taxi fare waiting at the garage, and a
-    // hidden package — with six already found.
-    startMission(game, 8);
+    // Mission 11 in progress: the Garage waypoint at the top edge (its
+    // diamond now hangs below the ring, and the "Solmar Garage" label is
+    // kept out of the minimap — the v0.2.0 overlap, fixed), the timer and
+    // the $2,400 payout, the pistol, a taxi fare waiting at the Stash
+    // House, a street race running, and a hidden package — with six
+    // already found.
+    startMission(game, 10);
     game.player.hasGun = true;
     game.player.ammo = 24;
-    game.player.cash = 11250;
+    game.player.cash = 19050;
     game.mission.timer = 212;
     game.banner = null;
     putPlayerInCar(game, 600, 900, Math.PI / 2, 0, 0);
@@ -147,9 +156,10 @@ export function stageShot(name, game) {
       if (game.packages[i]) game.packages[i].collected = true;
     }
     game.packagesCollected = 6;
-    stagePackage(game, 6, 700, 1000);
-    stageTaxi(game, 'pickup', { key: 'garage', x: 1000, y: 600, label: 'Solmar Garage' });
-    game.message = 'Reach the Stash House';
+    stagePackage(game, 6, 500, 1150);
+    stageTaxi(game, 'pickup', { key: 'stash', x: 600, y: 1000, label: 'Stash House' });
+    game.race = { state: 'active', next: 1, timer: 87, cooldown: 0 };
+    game.message = "Pick up the Club's tuned car at the Solmar Garage";
     game.messageT = 99;
     centreCamera(game);
     return { screen: SCREEN_PLAY };

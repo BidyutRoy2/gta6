@@ -13,7 +13,7 @@ import { drivePlayerCar, makeCar, nearestCar, resolveCarCollisions, spawnCars } 
 import { carHitsPeds, scarePeds, spawnPedestrians, updatePedestrians } from './pedestrians.js';
 import { updateTraffic } from './traffic.js';
 import { addWanted, updatePolice } from './police.js';
-import { currentObjective, missionByIndex, startMission, updateMissions } from './missions.js';
+import { currentObjective, MISSIONS, missionByIndex, startMission, updateMissions } from './missions.js';
 import { initActivities, spawnPackages, tryTaxiPickup, updateActivities } from './activities.js';
 import { policeShoot, punch, shoot, updateBullets, updateParticles } from './combat.js';
 import { createAudio } from './audio.js';
@@ -75,9 +75,10 @@ function createGame() {
       { name: 'Gold Pelican Coupe', price: 1500, desc: 'Top speed 380, yours', apply: (g) => { g.spawnShopCar = { name: 'Gold Pelican Coupe', top: 380, color: '#e8b93a', length: 48, width: 24 }; } },
       { name: 'Clinic patch-up', price: 80, desc: 'Health back to 100', apply: (g) => { g.player.health = 100; } },
       { name: 'Sunset Roadster', price: 2200, desc: 'Top speed 360, yours', apply: (g) => { g.spawnShopCar = CAR_MODELS[6]; } },
+      { name: 'Vega Phantom', price: 3000, desc: 'Top speed 390, yours', apply: (g) => { g.spawnShopCar = CAR_MODELS[7]; } },
     ],
     spawnShopCar: null,
-    stats: { missionsDone: 0, carsStolen: 0, pedsHit: 0, faresDone: 0 },
+    stats: { missionsDone: 0, carsStolen: 0, pedsHit: 0, faresDone: 0, racesWon: 0 },
     camera: { x: 360, y: 240 },
     bestCash: 0,
     hasSave: false,
@@ -123,6 +124,7 @@ function saveGame(game) {
       hasGun: game.player.hasGun,
       ammo: game.player.ammo,
       packages: game.packages.filter((p) => p.collected).map((p) => p.id),
+      races: game.stats.racesWon || 0,
     }));
     if (game.player.cash > game.bestCash) {
       game.bestCash = game.player.cash;
@@ -140,7 +142,8 @@ function applySave(game, data) {
   game.player.hasGun = !!data.hasGun;
   game.player.ammo = data.ammo || 0;
   game.stats.missionsDone = Math.max(0, (data.mission || 1) - 1);
-  game.saveMission = Math.min(10, data.mission || 1);
+  game.stats.racesWon = data.races || 0;
+  game.saveMission = Math.min(MISSIONS.length, data.mission || 1);
   if (Array.isArray(data.packages)) {
     for (const pkg of game.packages) {
       if (data.packages.includes(pkg.id)) {
@@ -387,8 +390,10 @@ function stepWorld(game, input, dt) {
 }
 
 const game = createGame();
-game.bestCash = readBestCash();
-applySave(game, readSave());
+// Staged screenshots are pristine: a save from an earlier play session
+// must not leak its cash, pistol or collected packages into the frame.
+game.bestCash = shot ? 0 : readBestCash();
+if (!shot) applySave(game, readSave());
 const renderer = createRenderer(canvas);
 game.view = { scale: 1, x: 0, y: 0, dpr: 1 };
 
@@ -437,9 +442,11 @@ function runGame() {
     game.player.ammo = 0;
     game.stats.missionsDone = 0;
     game.stats.faresDone = 0;
+    game.stats.racesWon = 0;
     game.packages.forEach((p) => { p.collected = false; });
     game.packagesCollected = 0;
     game.taxi = { state: 'idle', pickup: null, dropoff: null, fare: 0, cooldown: 0 };
+    game.race = { state: 'idle', next: 0, timer: 0, cooldown: 0 };
     game.hasSave = false;
     resetPlayerToStart(game);
     startMission(game, 0);
@@ -451,7 +458,7 @@ function runGame() {
 
   function continueSave() {
     resetPlayerToStart(game);
-    startMission(game, Math.min(9, game.saveMission - 1));
+    startMission(game, Math.min(MISSIONS.length - 1, game.saveMission - 1));
     screen = SCREEN_PLAY;
     announce(`Playing. Mission ${game.saveMission}.`);
     audio.ensure();
@@ -528,11 +535,11 @@ function runGame() {
       saveGame(game);
       audio.fail();
       announce('Wasted.');
-    } else if (game.mission && game.mission.done && game.mission.index === 9) {
+    } else if (game.mission && game.mission.done && game.mission.index === MISSIONS.length - 1) {
       screen = SCREEN_COMPLETE;
       saveGame(game);
       audio.chime();
-      announce('The Last Tide is complete — Solmar is yours.');
+      announce(`${game.mission.def.name} is complete — Solmar is yours.`);
     } else if (game.mission && game.mission.done && game.time - game.missionCompleteAt > 4) {
       // Roll into the next mission on its own.
       const next = game.mission.index + 1;
@@ -570,7 +577,7 @@ function runGame() {
   // A small debug handle for play-testing: the game object, read-only-ish.
   window.__solmar = {
     game,
-    version: '0.2.0',
+    version: '0.3.0',
     startMission: (index) => { resetPlayerToStart(game); startMission(game, index); },
     teleport: (x, y) => {
       if (game.player.car) { game.player.car.x = x; game.player.car.y = y; game.player.car.speed = 0; }

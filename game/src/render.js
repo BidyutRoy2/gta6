@@ -1,7 +1,7 @@
 // Drawing only: the city, the cars, the people, the player and the effects,
 // then the HUD, then the menu screens. The camera follows the player and the
 // 1280x720 view is scaled to the window. Nothing here changes game state.
-import { CITY, FONT, PALETTE, VIEW } from './config.js';
+import { CITY, FONT, PALETTE, RACE, VIEW } from './config.js';
 import { drawHud, drawShop } from './hud.js';
 
 export const SCREEN_TITLE = 'title';
@@ -10,6 +10,16 @@ export const SCREEN_PAUSED = 'paused';
 export const SCREEN_BUSTED = 'busted';
 export const SCREEN_WASTED = 'wasted';
 export const SCREEN_COMPLETE = 'complete';
+
+// The minimap sits top-right (x 1066–1270, y 10–166); world-space labels
+// keep out of a margin around it, so no ground text ever runs underneath
+// it. Shot 3 in v0.2.0 crowded the "Solmar Garage" label against this edge.
+const MINI_KEEPOUT = { x: VIEW.width - 230, y: 0, w: 230, h: 180 };
+
+function rectHitsMinimap(x, y, w, h) {
+  return x + w > MINI_KEEPOUT.x && x < MINI_KEEPOUT.x + MINI_KEEPOUT.w
+    && y + h > MINI_KEEPOUT.y && y < MINI_KEEPOUT.y + MINI_KEEPOUT.h;
+}
 
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
@@ -91,7 +101,8 @@ export function createRenderer(canvas) {
         ctx.fillRect(wx, ry - 2, 28, 4);
       }
     }
-    // Named places: a painted label on the ground.
+    // Named places: a painted label on the ground — skipped when it would
+    // run under the minimap (the minimap already shows the place).
     ctx.font = `700 13px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
@@ -100,6 +111,9 @@ export function createRenderer(canvas) {
       if (p.x < x0 - 80 || p.x > x1 + 80 || p.y < y0 - 30 || p.y > y1 + 30) continue;
       ctx.fillStyle = 'rgba(10,16,22,0.6)';
       const w = ctx.measureText(p.label).width + 14;
+      const sx = p.x - cam.x;
+      const sy = p.y - cam.y;
+      if (rectHitsMinimap(sx - w / 2, sy - 22, w, 18)) continue;
       ctx.fillRect(p.x - w / 2, p.y - 22, w, 18);
       ctx.fillStyle = '#ffe9a8';
       ctx.fillText(p.label, p.x, p.y - 19);
@@ -303,10 +317,12 @@ export function createRenderer(canvas) {
     ctx.beginPath();
     ctx.arc(t.x, t.y, 46 * pulse, 0, Math.PI * 2);
     ctx.fill();
-    // Floating diamond above it.
+    // Floating diamond above it — below the ring when the target sits near
+    // the top edge, so the diamond is never clipped by the frame.
     const bob = Math.sin(game.time * 3) * 5;
+    const diamondY = (t.y - cam.y - 58 + bob < 16) ? t.y + 58 - bob : t.y - 58 + bob;
     ctx.save();
-    ctx.translate(t.x, t.y - 58 + bob);
+    ctx.translate(t.x, diamondY);
     ctx.rotate(Math.PI / 4);
     ctx.fillStyle = PALETTE.waypoint;
     ctx.fillRect(-11, -11, 22, 22);
@@ -364,7 +380,7 @@ export function createRenderer(canvas) {
 
   function drawPanel(title, lines, prompt, accent) {
     const w = 660;
-    const h = 190 + lines.length * 30;
+    const h = 160 + lines.length * 30;
     const x = (VIEW.width - w) / 2;
     const y = (VIEW.height - h) / 2;
     ctx.fillStyle = PALETTE.panel;
@@ -379,6 +395,25 @@ export function createRenderer(canvas) {
   }
 
   function drawActivityMarkers(game, cam) {
+    // A floating label over a ring: it drops below the ring when the ring
+    // sits near the top edge (never clipped), and it is skipped when it
+    // would run under the minimap. Shot 3 in v0.2.0 clipped the TAXI label
+    // at the top edge.
+    function ringLabel(value, rx, ry, color) {
+      // No label for a ring whose centre is off-frame: the ring itself is
+      // barely (or not) visible, and the label would float on its own (the
+      // title screen used to show a lone "RACE" at the top edge).
+      const sx0 = rx - cam.x;
+      const sy0 = ry - cam.y;
+      if (sx0 < 0 || sx0 > VIEW.width || sy0 < 0 || sy0 > VIEW.height) return;
+      ctx.font = `700 14px ${FONT}`;
+      const w = ctx.measureText(value).width;
+      let ly = ry - 58;
+      if (ly - cam.y < 16) ly = ry + 52;
+      if (rectHitsMinimap(rx - cam.x - w / 2, ly - cam.y, w, 16)) return;
+      text(value, rx, ly, 14, color, 'center', true);
+    }
+
     // Taxi fare markers: a green ring at the waiting passenger, a gold
     // ring at the drop-off.
     const taxi = game.taxi;
@@ -395,7 +430,7 @@ export function createRenderer(canvas) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, 46 * pulse, 0, Math.PI * 2);
         ctx.fill();
-        text('TAXI', p.x, p.y - 58, 14, '#5fd67f', 'center', true);
+        ringLabel('TAXI', p.x, p.y, '#5fd67f');
       }
       if (taxi.state === 'dropoff' && taxi.dropoff) {
         const p = taxi.dropoff;
@@ -409,7 +444,38 @@ export function createRenderer(canvas) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, 46 * pulse, 0, Math.PI * 2);
         ctx.fill();
-        text('DROP-OFF', p.x, p.y - 58, 14, PALETTE.waypoint, 'center', true);
+        ringLabel('DROP-OFF', p.x, p.y, PALETTE.waypoint);
+      }
+    }
+    // Street race: the white start ring is always on the road; the next
+    // checkpoint ring only shows mid-race. Once every checkpoint is hit the
+    // start ring turns gold — it is the finish line.
+    const race = game.race;
+    if (race) {
+      const s = RACE.start;
+      const checkpoints = RACE.checkpoints;
+      const pulse = 1 + Math.sin(game.time * 5) * 0.15;
+      const isFinish = race.state === 'active' && race.next >= checkpoints.length;
+      ctx.strokeStyle = isFinish ? PALETTE.waypoint : '#f4efe4';
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = race.state === 'active' ? 1 : 0.55;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 46 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ringLabel(isFinish ? 'FINISH' : 'RACE', s.x, s.y, isFinish ? PALETTE.waypoint : '#f4efe4');
+      if (race.state === 'active' && race.next < checkpoints.length) {
+        const cp = checkpoints[race.next];
+        ctx.strokeStyle = '#7fb8ff';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(cp.x, cp.y, 56 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(127, 184, 255, 0.18)';
+        ctx.beginPath();
+        ctx.arc(cp.x, cp.y, 56 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ringLabel(`CHECKPOINT ${race.next + 1}`, cp.x, cp.y, '#7fb8ff');
       }
     }
     // Hidden packages: small gold crates with a glint.
@@ -455,9 +521,10 @@ export function createRenderer(canvas) {
     text('A SUN-SOAKED OPEN-WORLD CRIME STORY', VIEW.width / 2, 156, 20, PALETTE.text, 'center', true);
     text('Dana "Dash" Cole • Vega Transport • The Marlin Club • Solmar PD', VIEW.width / 2, 186, 16, PALETTE.muted, 'center');
     const lines = [
-      'Ten missions. Steal cars, lose the cops, take down Harlan Vega.',
+      'Twelve missions. Steal cars, lose the cops, take down Harlan Vega.',
       'WASD / arrows to move & drive • E to steal a car • Click to shoot • F to punch',
       'T for taxi fares • B for the garage shop • P to pause • M to mute',
+      'Street races start at the white ring on the north road — $1,600 a win',
     ];
     if (game.hasSave) lines.push(`Save found: Mission ${game.saveMission} — press Enter to continue, or S for a new game`);
     else lines.push(`Best cash so far: $${game.bestCash}`);
@@ -515,7 +582,7 @@ export function createRenderer(canvas) {
     } else if (screen === SCREEN_COMPLETE) {
       ctx.fillStyle = 'rgba(6,10,14,0.6)';
       ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-      drawPanel('SOLMAR LEGEND', ['You cracked the bank, took the ledger off Vega\'s yacht,', 'and brought it home to the Marlin Club.', `Final cash: $${game.player.cash} • All 10 missions complete`, 'Dana "Dash" Cole — legend of Solmar.'], 'Press Enter to keep playing the city');
+      drawPanel('SOLMAR LEGEND', ['You cracked the bank, took the ledger off Vega\'s yacht,', 'and brought it home to the Marlin Club.', `Final cash: $${game.player.cash} • All 12 missions complete`, 'Dana "Dash" Cole — legend of Solmar.'], 'Press Enter to keep playing the city');
     }
   }
 

@@ -47,12 +47,12 @@ export function createInput(canvas) {
     else if (SHOP.has(event.code)) queue(ACTION_SHOP, event);
     else if (TAXI.has(event.code)) queue(ACTION_TAXI, event);
     else if (MUTE.has(event.code)) queue(ACTION_MUTE, event);
-    else if (/^Digit[1-5]$/.test(event.code)) numberKeys.add(event.code);
+    else if (/^Digit[1-9]$/.test(event.code)) numberKeys.add(event.code);
     if (event.code === 'KeyS' && !event.repeat) newGame = true;
   });
   window.addEventListener('keyup', (event) => {
     held.delete(event.code);
-    if (/^Digit[1-5]$/.test(event.code)) numberKeys.delete(event.code);
+    if (/^Digit[1-9]$/.test(event.code)) numberKeys.delete(event.code);
   });
   window.addEventListener('blur', () => {
     held.clear();
