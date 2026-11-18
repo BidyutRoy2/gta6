@@ -1,7 +1,7 @@
 // The wanted system and the Solmar PD: stars rise with crimes, police cars
 // spawn and chase, ram, and shoot; outrun them and stay out of sight and the
 // heat falls; get cornered on foot and you are busted.
-import { POLICE, WANTED } from './config.js';
+import { CITY, HELI, POLICE, WANTED } from './config.js';
 import { spawnPoliceCar } from './traffic.js';
 
 export function addWanted(game, stars) {
@@ -118,4 +118,27 @@ export function updatePolice(game, dt) {
   if (game.wanted === 0) {
     game.cars = game.cars.filter((car) => car.driver !== 'police');
   }
+}
+
+/** The police helicopter: pure spectacle, no teeth. It appears once the
+ * heat reaches HELI.spawnWanted and circles the player until the heat
+ * drops; it never shoots, rams or arrests, so it cannot change a mission
+ * outcome — it only has to be seen. Kept off game.cars on purpose: the
+ * wanted and police counts never see it. */
+export function updateHeli(game, dt) {
+  const player = game.player;
+  const px = player.car ? player.car.x : player.x;
+  const py = player.car ? player.car.y : player.y;
+  if (game.wanted < HELI.spawnWanted) {
+    game.heli = null;
+    return;
+  }
+  if (!game.heli) {
+    game.heli = { angle: -0.6, radius: HELI.circleRadius, x: px, y: py, rotor: 0.6 };
+  }
+  const h = game.heli;
+  h.angle += HELI.angularSpeed * dt;
+  h.rotor = (h.rotor + dt * 14) % (Math.PI * 2);
+  h.x = Math.max(60, Math.min(CITY.width - 60, px + Math.cos(h.angle) * h.radius));
+  h.y = Math.max(60, Math.min(CITY.height - 60, py + Math.sin(h.angle) * h.radius));
 }

@@ -70,6 +70,14 @@ export const POLICE = {
   shootCooldown: 1.4,
 };
 
+// The police helicopter: pure spectacle, no teeth. It circles the player
+// once the heat reaches spawnWanted and leaves when the heat drops.
+export const HELI = {
+  circleRadius: 280, // how far from the player it circles
+  angularSpeed: 0.45, // radians per second around the player
+  spawnWanted: 3, // appears once the heat reaches this many stars
+};
+
 export const BULLET = { speed: 720, life: 0.9, damage: 34 };
 
 // Side activities: taxi fares and hidden packages.

@@ -91,6 +91,11 @@ export function drawMinimap(ctx, game) {
     ctx.fillStyle = car.driver === 'police' ? '#3b82ff' : '#e8e8e8';
     ctx.fillRect(sx(car.x) - 1.5, sy(car.y) - 1.5, 3, 3);
   }
+  // The police helicopter, when it is up, as a blue dot.
+  if (game.heli) {
+    ctx.fillStyle = '#3b82ff';
+    ctx.fillRect(sx(game.heli.x) - 2, sy(game.heli.y) - 2, 4, 4);
+  }
   const px = game.player.car ? game.player.car.x : game.player.x;
   const py = game.player.car ? game.player.car.y : game.player.y;
   ctx.save();
@@ -153,22 +158,27 @@ export function drawHud(ctx, game) {
     ctx.fillRect((VIEW.width - w) / 2, VIEW.height - 52, 4, 32);
     text(ctx, label, (VIEW.width - w) / 2 + 16, VIEW.height - 44, 16, PALETTE.text, 'left');
   }
-  // Mission timer, under the minimap.
+  // Right-side status stack, under the minimap — timer / payout / taxi /
+  // race, one dark backing panel behind the active lines (the same panel
+  // the objective line already has), so the text never sits on bright
+  // buildings. Positions stay where they were; only the backing is new.
+  const stack = [];
   if (game.mission && game.mission.timer > 0 && !game.mission.done) {
     const t = Math.max(0, Math.ceil(game.mission.timer));
     const mm = Math.floor(t / 60);
     const ss = String(t % 60).padStart(2, '0');
     const col = t < 30 ? '#ff5a4a' : PALETTE.text;
-    text(ctx, `⏱ ${mm}:${ss}`, VIEW.width - 20, 178, 20, col, 'right', true);
-    text(ctx, `Payout $${game.mission.def.payout}`, VIEW.width - 20, 202, 14, PALETTE.cash, 'right', true);
+    stack.push({ value: `⏱ ${mm}:${ss}`, y: 178, size: 20, color: col, bold: true });
+    stack.push({ value: `Payout $${game.mission.def.payout}`, y: 202, size: 14, color: PALETTE.cash });
   }
-  // Taxi fare status, under the mission timer.
+  // Short place names keep the taxi line from running across the frame.
+  const shortPlace = { 'The Marlin Club': 'Marlin Club', 'Solmar Garage': 'Garage', 'Stash House': 'Stash House' };
+  const shortLabel = (label) => shortPlace[label] || label;
   if (game.taxi && game.taxi.state === 'dropoff' && game.taxi.dropoff) {
-    text(ctx, `Taxi fare $${game.taxi.fare} → ${game.taxi.dropoff.label}`, VIEW.width - 20, 226, 14, '#5fd67f', 'right', true);
+    stack.push({ value: `Taxi $${game.taxi.fare} → ${shortLabel(game.taxi.dropoff.label)}`, y: 226, size: 14, color: '#5fd67f' });
   } else if (game.taxi && game.taxi.state === 'pickup' && game.taxi.pickup) {
-    text(ctx, `Taxi: fare waiting at ${game.taxi.pickup.label}`, VIEW.width - 20, 226, 14, '#5fd67f', 'right', true);
+    stack.push({ value: `Taxi pickup: ${shortLabel(game.taxi.pickup.label)}`, y: 226, size: 14, color: '#5fd67f' });
   }
-  // Street race status, under the taxi line.
   if (game.race && game.race.state === 'active') {
     const t = Math.max(0, Math.ceil(game.race.timer));
     const mm = Math.floor(t / 60);
@@ -176,7 +186,23 @@ export function drawHud(ctx, game) {
     const leg = game.race.next < RACE.checkpoints.length
       ? `Checkpoint ${game.race.next + 1}/3`
       : 'Finish: back to the start!';
-    text(ctx, `🏁 Race ${leg} — ${mm}:${ss}`, VIEW.width - 20, 250, 14, '#7fb8ff', 'right', true);
+    stack.push({ value: `🏁 Race ${leg} — ${mm}:${ss}`, y: 250, size: 14, color: '#7fb8ff' });
+  }
+  if (stack.length > 0) {
+    let maxW = 0;
+    for (const line of stack) {
+      ctx.font = `${line.bold ? '700 ' : ''}${line.size}px ${FONT}`;
+      maxW = Math.max(maxW, ctx.measureText(line.value).width);
+    }
+    const pad = 10;
+    const px = VIEW.width - 20 - maxW - pad;
+    const py = stack[0].y - 6;
+    const ph = (stack[stack.length - 1].y + 19) - py;
+    ctx.fillStyle = 'rgba(10, 16, 22, 0.78)';
+    ctx.fillRect(px, py, VIEW.width - 20 + pad - px, ph);
+    for (const line of stack) {
+      text(ctx, line.value, VIEW.width - 20, line.y, line.size, line.color, 'right', line.bold);
+    }
   }
   // Progress bars for wait / chase steps.
   if (game.waitProgress > 0) {

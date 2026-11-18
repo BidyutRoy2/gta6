@@ -524,11 +524,49 @@ export function createRenderer(canvas) {
       'Twelve missions. Steal cars, lose the cops, take down Harlan Vega.',
       'WASD / arrows to move & drive • E to steal a car • Click to shoot • F to punch',
       'T for taxi fares • B for the garage shop • P to pause • M to mute',
-      'Street races start at the white ring on the north road — $1,600 a win',
+      'Street races start at the white ring on the north road — up to $1,450 a race',
     ];
     if (game.hasSave) lines.push(`Save found: Mission ${game.saveMission} — press Enter to continue, or S for a new game`);
     else lines.push(`Best cash so far: $${game.bestCash}`);
     drawPanel('WELCOME TO SOLMAR', lines, game.hasSave ? 'Enter — continue    S — new game' : 'Press Enter or click to start', '#ffd23f');
+  }
+
+  function drawHeli(game) {
+    const h = game.heli;
+    if (!h) return;
+    // Shadow on the ground, offset down-sun from the body.
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(h.x + 16, h.y + 20, 26, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Body: a dark PD helicopter, nose along its orbit, white stripe.
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.rotate(h.angle + Math.PI / 2);
+    ctx.fillStyle = '#232d3a';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 26, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e8e8e8';
+    ctx.fillRect(-14, -3, 28, 6);
+    ctx.fillStyle = '#7fb8c9';
+    ctx.beginPath();
+    ctx.ellipse(15, 0, 8, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#232d3a';
+    ctx.fillRect(-36, -3, 14, 6);
+    ctx.restore();
+    // Rotor: a spinning bar above the body.
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.rotate(h.rotor || 0);
+    ctx.strokeStyle = 'rgba(232,232,232,0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-36, 0);
+    ctx.lineTo(36, 0);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawWorldFrame(game) {
@@ -546,6 +584,7 @@ export function createRenderer(canvas) {
     for (const ped of game.peds) drawPed(ped);
     drawPlayer(game);
     drawEffects(game);
+    drawHeli(game);
     ctx.restore();
     // Warm sun wash, stronger at the top of the frame.
     const grad = ctx.createLinearGradient(0, 0, 0, VIEW.height);

@@ -93,8 +93,9 @@ export function stageShot(name, game) {
   game.messageT = 0;
   if (name === 'cover') {
     // Mission 12's finale chase at 3 stars in the new Vega Phantom: Vega's
-    // getaway car ahead, three PD cars closing in, the wanted stars, the
-    // minimap, a live race, a taxi fare in progress and a hidden package.
+    // getaway car ahead, three PD cars closing in, the police helicopter
+    // overhead, the wanted stars, the minimap, a taxi fare in progress
+    // and a hidden package.
     startMission(game, 11);
     game.mission.timer = 0; // the chase shot has no countdown
     // Vega's car, placed ahead of the player so the chase ring is in frame.
@@ -112,7 +113,13 @@ export function stageShot(name, game) {
     ]);
     stageTaxi(game, 'dropoff', { key: 'club', x: 1800, y: 1000, label: 'The Marlin Club' }, 140);
     stagePackage(game, 0, 1400, 1150);
-    game.race = { state: 'active', next: 1, timer: 87, cooldown: 0 };
+    // The police helicopter overhead: the heat is 3 stars, so it is up
+    // and circling — placed by hand so the staged frame always shows it.
+    game.heli = {
+      angle: -0.6, radius: 280,
+      x: 1400 + Math.cos(-0.6) * 280, y: 1000 + Math.sin(-0.6) * 280,
+      rotor: 0.6,
+    };
     game.player.health = 82;
     game.player.cash = 20850;
     game.banner = null;
@@ -138,28 +145,46 @@ export function stageShot(name, game) {
     centreCamera(game);
     return { screen: SCREEN_PLAY };
   }
+  if (name === 'race') {
+    // Mid-race in the Vega Phantom on the east road: checkpoint 2's blue
+    // ring ahead, the race timer running, 143 MPH on the clock. No
+    // mission, no taxi — the race is the whole frame.
+    putPlayerInCar(game, 2600, 1100, Math.PI / 2, 7, 260);
+    game.race = { state: 'active', next: 1, timer: 87, cooldown: 0 };
+    game.player.health = 100;
+    game.player.cash = 1850;
+    game.message = 'Race — hit the blue checkpoint ring, then the next one';
+    game.messageT = 99;
+    centreCamera(game);
+    return { screen: SCREEN_PLAY };
+  }
   if (name === 'mission') {
-    // Mission 11 in progress: the Garage waypoint at the top edge (its
-    // diamond now hangs below the ring, and the "Solmar Garage" label is
-    // kept out of the minimap — the v0.2.0 overlap, fixed), the timer and
-    // the $2,400 payout, the pistol, a taxi fare waiting at the Stash
-    // House, a street race running, and a hidden package — with six
-    // already found.
-    startMission(game, 10);
+    // Mission 12's vault hold under 4-star heat: the hold-progress bar
+    // mid-fill, the $7,500 payout, the pistol, two PD cars closing in —
+    // the most dramatic beat in the game. Taxi and race are off, so only
+    // timer + payout show top-right.
+    startMission(game, 11);
+    game.banner = null;
+    game.mission.step = 1;
+    game.mission.waitT = 5;
+    game.waitProgress = 0.5;
+    game.mission.heatRaised = true;
+    game.wanted = 4;
     game.player.hasGun = true;
     game.player.ammo = 24;
-    game.player.cash = 19050;
+    game.player.cash = 20850;
     game.mission.timer = 212;
-    game.banner = null;
-    putPlayerInCar(game, 600, 900, Math.PI / 2, 0, 0);
+    putPlayerInCar(game, 1400, 1470, -Math.PI / 2, 7, 0);
+    placePolice(game, [
+      { x: 1150, y: 1400, angle: 0, speed: 240 },
+      { x: 1650, y: 1400, angle: Math.PI, speed: 240 },
+    ]);
     for (let i = 0; i < 6; i += 1) {
       if (game.packages[i]) game.packages[i].collected = true;
     }
     game.packagesCollected = 6;
-    stagePackage(game, 6, 500, 1150);
-    stageTaxi(game, 'pickup', { key: 'stash', x: 600, y: 1000, label: 'Stash House' });
-    game.race = { state: 'active', next: 1, timer: 87, cooldown: 0 };
-    game.message = "Pick up the Club's tuned car at the Solmar Garage";
+    stagePackage(game, 6, 950, 1300);
+    game.message = 'Corner Vega at the vault — hold 10s';
     game.messageT = 99;
     centreCamera(game);
     return { screen: SCREEN_PLAY };

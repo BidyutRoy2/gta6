@@ -12,7 +12,7 @@ import { buildCity, resolveBuilding } from './world.js';
 import { drivePlayerCar, makeCar, nearestCar, resolveCarCollisions, spawnCars } from './traffic.js';
 import { carHitsPeds, scarePeds, spawnPedestrians, updatePedestrians } from './pedestrians.js';
 import { updateTraffic } from './traffic.js';
-import { addWanted, updatePolice } from './police.js';
+import { addWanted, updateHeli, updatePolice } from './police.js';
 import { currentObjective, MISSIONS, missionByIndex, startMission, updateMissions } from './missions.js';
 import { initActivities, spawnPackages, tryTaxiPickup, updateActivities } from './activities.js';
 import { policeShoot, punch, shoot, updateBullets, updateParticles } from './combat.js';
@@ -47,6 +47,7 @@ function createGame() {
     decayT: 0,
     lastCrimeT: -100,
     spawnTimer: 0,
+    heli: null, // the police helicopter, once the heat reaches 3 stars
     nearestPolice: Infinity,
     arrestT: 0,
     busted: false,
@@ -346,6 +347,7 @@ function stepWorld(game, input, dt) {
   }
 
   updatePolice(game, dt);
+  updateHeli(game, dt);
   policeShoot(game);
   updateBullets(game, dt);
   updateParticles(game, dt);
@@ -577,7 +579,7 @@ function runGame() {
   // A small debug handle for play-testing: the game object, read-only-ish.
   window.__solmar = {
     game,
-    version: '0.3.0',
+    version: '0.4.0',
     startMission: (index) => { resetPlayerToStart(game); startMission(game, index); },
     teleport: (x, y) => {
       if (game.player.car) { game.player.car.x = x; game.player.car.y = y; game.player.car.speed = 0; }

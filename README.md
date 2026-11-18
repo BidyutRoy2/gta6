@@ -15,12 +15,17 @@ Solmar PD.
 
 Dana starts out running ordinary courier jobs, then gets drawn into the
 Marlin Club's smuggling operation, and the story builds toward a heist
-against corporate boss Harlan Vega. There are eight story missions, each
-paying cash on completion, plus a wanted system that sends police after you,
-cars you can steal and drive, hand-to-hand combat on foot, busy traffic and
-pedestrians on the streets, a minimap HUD, a garage shop where earned cash
-buys repairs, ammo and a faster car, and a save system that keeps your
-progress.
+against corporate boss Harlan Vega. There are twelve story missions, each
+paying cash on completion — ending in a two-mission finale (M11 The Marlin
+Run, M12 Vega's Last Stand) that settles the score with Harlan Vega himself
+— plus a wanted system that sends police after you, cars you can steal and
+drive, hand-to-hand combat on foot, busy traffic and pedestrians on the
+streets, a minimap HUD, a garage shop where earned cash buys repairs, ammo
+and a faster car, and a save system that keeps your progress. Between
+missions you can earn extra cash driving taxi fares (press T in a Solmar
+Taxi), hunting ten hidden packages worth $100 each, and racing the white
+ring on the north road for up to $1,450 a win in the Vega Phantom, the
+fastest car in the city.
 
 ## How to play
 
@@ -28,6 +33,7 @@ progress.
 - **E** — get in or out of a car (step up to a parked car to steal it)
 - **Mouse click** — fire your weapon (you get a pistol from Mission 3)
 - **F** — punch
+- **T** — taxi fares (drive a Solmar Taxi to pick up a waiting fare)
 - **B** — open the garage shop (stand near the garage marker)
 - **P / Esc** — pause, **M** — mute
 
@@ -46,7 +52,7 @@ no libraries — everything under `game/` is plain static files.
 
 ## Screenshots
 
-`?shot=cover|street|mission|menu&seed=7` sets up repeatable scenes of the
+`?shot=cover|race|mission|menu&seed=7` sets up repeatable scenes of the
 game for taking screenshots; `shots.json` lists the four shots that ship
 with the repo.
 
