@@ -1,8 +1,8 @@
 // Drawing only: the city, the cars, the people, the player and the effects,
 // then the HUD, then the menu screens. The camera follows the player and the
 // 1280x720 view is scaled to the window. Nothing here changes game state.
-import { CITY, FONT, PALETTE, RACE, VIEW } from './config.js';
-import { drawHud, drawShop } from './hud.js';
+import { CITY, CLOCK, FONT, PALETTE, RACE, VIEW } from './config.js';
+import { drawHud, drawPauseMap, drawShop } from './hud.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -15,15 +15,37 @@ export const SCREEN_COMPLETE = 'complete';
 // keep out of a margin around it, so no ground text ever runs underneath
 // it. Shot 3 in v0.2.0 crowded the "Solmar Garage" label against this edge.
 const MINI_KEEPOUT = { x: VIEW.width - 230, y: 0, w: 230, h: 180 };
+// The top-left HUD cluster and the bottom-centre objective/dialogue zone
+// are keepouts too: a place label under the HUD reads as a bug.
+const HUD_KEEPOUTS = [
+  MINI_KEEPOUT,
+  { x: 0, y: 0, w: 330, h: 230 },
+  { x: 330, y: VIEW.height - 160, w: VIEW.width - 660, h: 160 },
+];
 
 function rectHitsMinimap(x, y, w, h) {
   return x + w > MINI_KEEPOUT.x && x < MINI_KEEPOUT.x + MINI_KEEPOUT.w
     && y + h > MINI_KEEPOUT.y && y < MINI_KEEPOUT.y + MINI_KEEPOUT.h;
 }
 
+function rectHitsHud(x, y, w, h) {
+  return HUD_KEEPOUTS.some((k) => x + w > k.x && x < k.x + k.w && y + h > k.y && y < k.y + k.h);
+}
+
+/** The phase of the city day from the clock: dawn, day, sunset, night. */
+export function dayPhase(game) {
+  const m = game.clockMinutes;
+  if (m >= CLOCK.sunsetStart && m < CLOCK.nightStart) return 'sunset';
+  if (m >= CLOCK.nightStart || m < CLOCK.dawnStart) return 'night';
+  if (m >= CLOCK.dawnStart && m < CLOCK.dayStart) return 'dawn';
+  return 'day';
+}
+
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
   const view = { scale: 1, x: 0, y: 0, dpr: 1 };
+  // The day phase for the frame being drawn; car headlights read it.
+  let framePhase = 'day';
 
   function resize() {
     const ratio = window.devicePixelRatio || 1;
@@ -113,7 +135,7 @@ export function createRenderer(canvas) {
       const w = ctx.measureText(p.label).width + 14;
       const sx = p.x - cam.x;
       const sy = p.y - cam.y;
-      if (rectHitsMinimap(sx - w / 2, sy - 22, w, 18)) continue;
+      if (rectHitsHud(sx - w / 2, sy - 22, w, 18)) continue;
       ctx.fillRect(p.x - w / 2, p.y - 22, w, 18);
       ctx.fillStyle = '#ffe9a8';
       ctx.fillText(p.label, p.x, p.y - 19);
@@ -131,12 +153,15 @@ export function createRenderer(canvas) {
       ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.fillStyle = b.roof;
       ctx.fillRect(b.x + 5, b.y + 5, b.w - 10, b.h - 10);
-      // Windows in rows; taller buildings get more rows.
-      ctx.fillStyle = PALETTE.glass;
+      // Windows in rows; taller buildings get more rows. After dark a
+      // deterministic subset of windows is lit warm.
       const cols = Math.max(2, Math.floor(b.w / 26));
       const rows = Math.min(b.floors + 1, Math.max(2, Math.floor(b.h / 26)));
+      const dark = framePhase === 'night' || framePhase === 'sunset';
       for (let c = 0; c < cols; c += 1) {
         for (let r = 0; r < rows; r += 1) {
+          const lit = dark && ((b.x * 7 + b.y * 13 + c * 31 + r * 17) % 5 === 0);
+          ctx.fillStyle = lit ? '#ffd98a' : PALETTE.glass;
           ctx.fillRect(b.x + 10 + c * ((b.w - 20) / cols), b.y + 10 + r * ((b.h - 20) / rows), 12, 9);
         }
       }
@@ -165,10 +190,21 @@ export function createRenderer(canvas) {
         ctx.fill();
       }
     }
-    // Street lamps.
+    // Street lamps — with a warm glow pool after dark.
+    const dark = framePhase === 'night' || framePhase === 'sunset';
     for (const lamp of game.city.lamps) {
-      if (lamp.x < cam.x - 10 || lamp.x > cam.x + VIEW.width + 10) continue;
-      if (lamp.y < cam.y - 10 || lamp.y > cam.y + VIEW.height + 10) continue;
+      if (lamp.x < cam.x - 60 || lamp.x > cam.x + VIEW.width + 60) continue;
+      if (lamp.y < cam.y - 60 || lamp.y > cam.y + VIEW.height + 60) continue;
+      if (dark) {
+        ctx.fillStyle = 'rgba(255, 217, 138, 0.10)';
+        ctx.beginPath();
+        ctx.arc(lamp.x, lamp.y, 52, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255, 217, 138, 0.14)';
+        ctx.beginPath();
+        ctx.arc(lamp.x, lamp.y, 26, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.fillStyle = '#2b2f36';
       ctx.fillRect(lamp.x - 2, lamp.y - 2, 4, 14);
       ctx.fillStyle = '#ffe9a8';
@@ -184,6 +220,16 @@ export function createRenderer(canvas) {
     ctx.rotate(car.angle);
     const l = car.length;
     const w = car.width;
+    // Headlight cone after dark: a soft wedge ahead of the car.
+    if (framePhase === 'night' || framePhase === 'sunset') {
+      ctx.fillStyle = 'rgba(255, 233, 168, 0.13)';
+      ctx.beginPath();
+      ctx.moveTo(l / 2, 0);
+      ctx.lineTo(l / 2 + 110, -34);
+      ctx.lineTo(l / 2 + 110, 34);
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.fillRect(-l / 2 + 3, -w / 2 + 4, l, w);
     ctx.fillStyle = car.color;
@@ -410,8 +456,14 @@ export function createRenderer(canvas) {
       const w = ctx.measureText(value).width;
       let ly = ry - 58;
       if (ly - cam.y < 16) ly = ry + 52;
-      if (rectHitsMinimap(rx - cam.x - w / 2, ly - cam.y, w, 16)) return;
-      text(value, rx, ly, 14, color, 'center', true);
+      // Never run off the bottom either.
+      if (ly - cam.y > VIEW.height - 24) ly = ry - 58;
+      // Clamp horizontally so the label never clips at a frame edge.
+      let lx = rx;
+      if (lx - cam.x - w / 2 < 8) lx = cam.x + w / 2 + 8;
+      if (lx - cam.x + w / 2 > VIEW.width - 8) lx = cam.x + VIEW.width - w / 2 - 8;
+      if (rectHitsHud(lx - cam.x - w / 2, ly - cam.y, w, 16)) return;
+      text(value, lx, ly, 14, color, 'center', true);
     }
 
     // Taxi fare markers: a green ring at the waiting passenger, a gold
@@ -523,21 +575,43 @@ export function createRenderer(canvas) {
     const lines = [
       'Twelve missions. Steal cars, lose the cops, take down Harlan Vega.',
       'WASD / arrows to move & drive • E to steal a car • Click to shoot • F to punch',
-      'T for taxi fares • B for the garage shop • P to pause • M to mute',
-      'Street races start at the white ring on the north road — up to $1,450 a race',
+      '1–5 switch weapons • T taxi fares • B garage shop • R radio • Shift nitro',
+      'P pause map • M mute • Street races pay up to $1,450 a race',
     ];
-    if (game.hasSave) lines.push(`Save found: Mission ${game.saveMission} — press Enter to continue, or S for a new game`);
-    else lines.push(`Best cash so far: $${game.bestCash}`);
+    if (game.hasSave) {
+      lines.push(`Save found: Mission ${game.saveMission} · $${game.saveCash || 0} — Enter continues, S starts new`);
+    } else {
+      lines.push('5 weapon slots · respect ranks · 5 districts · live police dispatch');
+      lines.push('Taxi fares, street races and 10 hidden packages fill the city between jobs');
+    }
     drawPanel('WELCOME TO SOLMAR', lines, game.hasSave ? 'Enter — continue    S — new game' : 'Press Enter or click to start', '#ffd23f');
   }
 
   function drawHeli(game) {
     const h = game.heli;
     if (!h) return;
-    // Shadow on the ground, offset down-sun from the body.
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    // The spotlight: a translucent cone from the aircraft to the lit
+    // circle on the ground, which tracks the player with a lag.
+    const spotX = typeof h.spotX === 'number' ? h.spotX : h.x;
+    const spotY = typeof h.spotY === 'number' ? h.spotY : h.y;
+    ctx.fillStyle = 'rgba(255, 240, 190, 0.22)';
     ctx.beginPath();
-    ctx.ellipse(h.x + 16, h.y + 20, 26, 11, 0, 0, Math.PI * 2);
+    ctx.moveTo(h.x, h.y);
+    const coneA = Math.atan2(spotY - h.y, spotX - h.x);
+    const coneSpread = 0.32;
+    const coneLen = Math.hypot(spotX - h.x, spotY - h.y) + 40;
+    ctx.lineTo(h.x + Math.cos(coneA - coneSpread) * coneLen, h.y + Math.sin(coneA - coneSpread) * coneLen);
+    ctx.lineTo(h.x + Math.cos(coneA + coneSpread) * coneLen, h.y + Math.sin(coneA + coneSpread) * coneLen);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 240, 190, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(spotX, spotY, 150, 105, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Shadow on the ground, offset down-sun from the body.
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(h.x + 28, h.y + 34, 46, 19, 0, 0, Math.PI * 2);
     ctx.fill();
     // Body: a dark PD helicopter, nose along its orbit, white stripe.
     ctx.save();
@@ -545,26 +619,30 @@ export function createRenderer(canvas) {
     ctx.rotate(h.angle + Math.PI / 2);
     ctx.fillStyle = '#232d3a';
     ctx.beginPath();
-    ctx.ellipse(0, 0, 26, 12, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 46, 21, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#e8e8e8';
-    ctx.fillRect(-14, -3, 28, 6);
+    ctx.fillRect(-25, -5, 50, 10);
     ctx.fillStyle = '#7fb8c9';
     ctx.beginPath();
-    ctx.ellipse(15, 0, 8, 6, 0, 0, Math.PI * 2);
+    ctx.ellipse(27, 0, 14, 11, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#232d3a';
-    ctx.fillRect(-36, -3, 14, 6);
+    ctx.fillRect(-64, -5, 25, 10);
+    ctx.fillStyle = '#f4efe4';
+    ctx.font = '700 11px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.fillText('PD AIR', 0, -14);
     ctx.restore();
     // Rotor: a spinning bar above the body.
     ctx.save();
     ctx.translate(h.x, h.y);
     ctx.rotate(h.rotor || 0);
     ctx.strokeStyle = 'rgba(232,232,232,0.85)';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(-36, 0);
-    ctx.lineTo(36, 0);
+    ctx.moveTo(-64, 0);
+    ctx.lineTo(64, 0);
     ctx.stroke();
     ctx.restore();
   }
@@ -586,18 +664,35 @@ export function createRenderer(canvas) {
     drawEffects(game);
     drawHeli(game);
     ctx.restore();
-    // Warm sun wash, stronger at the top of the frame.
-    const grad = ctx.createLinearGradient(0, 0, 0, VIEW.height);
-    grad.addColorStop(0, 'rgba(255, 200, 120, 0.10)');
-    grad.addColorStop(1, 'rgba(255, 200, 120, 0.0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    // The light of the hour: warm day wash, orange sunset, dark blue
+    // night, pale dawn. The HUD is drawn after, so it stays readable.
+    if (framePhase === 'night') {
+      ctx.fillStyle = 'rgba(10, 16, 40, 0.42)';
+      ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    } else if (framePhase === 'sunset') {
+      const grad = ctx.createLinearGradient(0, 0, 0, VIEW.height);
+      grad.addColorStop(0, 'rgba(255, 140, 60, 0.26)');
+      grad.addColorStop(1, 'rgba(255, 140, 60, 0.10)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    } else if (framePhase === 'dawn') {
+      ctx.fillStyle = 'rgba(255, 180, 120, 0.08)';
+      ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    } else {
+      // Warm sun wash, stronger at the top of the frame.
+      const grad = ctx.createLinearGradient(0, 0, 0, VIEW.height);
+      grad.addColorStop(0, 'rgba(255, 200, 120, 0.10)');
+      grad.addColorStop(1, 'rgba(255, 200, 120, 0.0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+    }
     drawHud(ctx, game);
     if (game.shopOpen) drawShop(ctx, game);
   }
 
   /** Paint one frame for the screen the game is on. */
   function draw(game, screen) {
+    framePhase = dayPhase(game);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#0b0f14';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -607,9 +702,7 @@ export function createRenderer(canvas) {
     }
     drawWorldFrame(game);
     if (screen === SCREEN_PAUSED) {
-      ctx.fillStyle = 'rgba(6,10,14,0.6)';
-      ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-      drawPanel('PAUSED', ['The city waits. Your save is kept.', `Mission ${game.mission ? game.mission.def.id : '—'}: ${game.mission ? game.mission.def.name : ''}`, `Cash $${game.player.cash} • Wanted ${game.wanted} star${game.wanted === 1 ? '' : 's'}`], 'Press P or Enter to resume');
+      drawPauseMap(ctx, game);
     } else if (screen === SCREEN_BUSTED) {
       ctx.fillStyle = 'rgba(6,10,14,0.6)';
       ctx.fillRect(0, 0, VIEW.width, VIEW.height);

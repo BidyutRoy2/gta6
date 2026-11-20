@@ -2,6 +2,20 @@
 // engine hum that follows the car's speed, a two-tone police siren, gunshots,
 // a punch thud, a crash crunch and mission chimes. Everything is created on
 // the first user gesture; until then the game is silent.
+//
+// The radio is three stations of procedural music: a step sequencer plays
+// a fixed bass-and-melody pattern per station (see RADIO in config.js),
+// scheduled a beat ahead of the audio clock. No samples, no randomness —
+// the same station always plays the same tune.
+import { RADIO } from './config.js';
+
+// Melody lines as scale-degree indices (-1 = rest), one per station,
+// 32 eighth-note steps each. Bass plays the root on the beat under them.
+const MELODIES = [
+  [0, -1, 2, -1, 4, -1, 2, -1, 5, -1, 4, -1, 2, -1, 1, -1, 0, -1, 2, -1, 4, -1, 5, -1, 4, 2, 1, -1, 0, -1, -1, -1],
+  [4, -1, -1, 2, -1, 0, -1, -1, 1, -1, 2, -1, -1, 4, -1, -1, 5, -1, 4, 2, -1, 1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1],
+  [0, -1, -1, -1, 2, -1, -1, -1, 4, -1, -1, -1, 2, -1, -1, -1, 1, -1, -1, -1, 2, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1],
+];
 export function createAudio() {
   let ctx = null;
   let master = null;
@@ -12,6 +26,10 @@ export function createAudio() {
   let sirenLfo = null;
   let muted = false;
   let started = false;
+  // Radio sequencer state.
+  let radioStation = -1;
+  let radioStep = 0;
+  let radioNextT = 0;
 
   function ensure() {
     if (started) return;
@@ -94,6 +112,19 @@ export function createAudio() {
     osc.stop(ctx.currentTime + duration);
   }
 
+  function radioNote(freq, at, duration, volume, type) {
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, at);
+    gain.gain.exponentialRampToValueAtTime(0.001, at + duration);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(at);
+    osc.stop(at + duration);
+  }
+
   return {
     ensure,
     get muted() { return muted; },
@@ -112,6 +143,39 @@ export function createAudio() {
     siren(on) {
       if (!ctx || !sirenGain) return;
       sirenGain.gain.setTargetAtTime(on ? 0.045 : 0, ctx.currentTime, 0.15);
+    },
+    /**
+     * The car radio. Call every frame with the tuned station index and
+     * whether it should be audible (in a car, unmuted). Notes are
+     * scheduled a quarter-second ahead of the audio clock; switching
+     * station restarts that station's pattern from the top.
+     */
+    radio(stationIndex, on) {
+      if (!ctx) return;
+      if (!on) { radioStation = -1; return; }
+      if (radioStation !== stationIndex) {
+        radioStation = stationIndex;
+        radioStep = 0;
+        radioNextT = ctx.currentTime + 0.05;
+      }
+      const st = RADIO.stations[stationIndex];
+      const melody = MELODIES[stationIndex % MELODIES.length];
+      const stepDur = 60 / st.tempo / 2; // eighth notes
+      while (radioNextT < ctx.currentTime + 0.25) {
+        const step = radioStep % 32;
+        // Bass: root on the beat, the fifth halfway through the bar.
+        if (step % 4 === 0) {
+          const semis = step === 16 ? 7 : 0;
+          radioNote(st.root * Math.pow(2, semis / 12) / 2, radioNextT, stepDur * 1.8, 0.09, 'triangle');
+        }
+        const degree = melody[step];
+        if (degree >= 0) {
+          const semis = st.scale[degree % st.scale.length];
+          radioNote(st.root * Math.pow(2, semis / 12), radioNextT, stepDur * 1.6, 0.055, st.wave);
+        }
+        radioStep += 1;
+        radioNextT += stepDur;
+      }
     },
     shot() { noiseBurst(0.12, 0.5, 2800); tone(160, 0.08, 0.25, 'square'); },
     thud() { noiseBurst(0.09, 0.35, 500); tone(90, 0.1, 0.3, 'sine'); },

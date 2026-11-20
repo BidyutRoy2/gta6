@@ -6,7 +6,7 @@
 // ?seed=N fixes the city. ?shot=cover|street|mission|menu (with &seed=N)
 // stages that scene instead of running the loop, paints it twice and sets
 // window.__shotReady for a screenshot.
-import { BEST_KEY, CAR, CAR_MODELS, CITY, DEFAULT_SEED, PLAYER, SAVE_KEY, STEP, VIEW, WANTED } from './config.js';
+import { BEST_KEY, CAR, CAR_MODELS, CITY, CLOCK, DEFAULT_SEED, PLAYER, RESPECT, SAVE_KEY, STEP, VIEW, WANTED, WEAPONS } from './config.js';
 import { createRandom } from './random.js';
 import { buildCity, resolveBuilding } from './world.js';
 import { drivePlayerCar, makeCar, nearestCar, resolveCarCollisions, spawnCars } from './traffic.js';
@@ -15,9 +15,10 @@ import { updateTraffic } from './traffic.js';
 import { addWanted, updateHeli, updatePolice } from './police.js';
 import { currentObjective, MISSIONS, missionByIndex, startMission, updateMissions } from './missions.js';
 import { initActivities, spawnPackages, tryTaxiPickup, updateActivities } from './activities.js';
-import { policeShoot, punch, shoot, updateBullets, updateParticles } from './combat.js';
+import { grantWeapon, policeShoot, punch, shoot, switchWeapon, syncArsenal, updateBullets, updateParticles } from './combat.js';
+import { addRespect, createMeta, nextStation, updateRadio } from './meta.js';
 import { createAudio } from './audio.js';
-import { ACTION_CONFIRM, ACTION_INTERACT, ACTION_MUTE, ACTION_PAUSE, ACTION_PUNCH, ACTION_SHOP, ACTION_SHOOT, ACTION_TAXI, createInput } from './input.js';
+import { ACTION_CONFIRM, ACTION_INTERACT, ACTION_MUTE, ACTION_PAUSE, ACTION_PUNCH, ACTION_RADIO, ACTION_SHOP, ACTION_SHOOT, ACTION_TAXI, createInput } from './input.js';
 import { SCREEN_BUSTED, SCREEN_COMPLETE, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WASTED, createRenderer } from './render.js';
 import { stageShot } from './shots.js';
 
@@ -40,12 +41,21 @@ function createGame() {
   const packages = spawnPackages(city, rng);
   const game = {
     seed, rng, city, cars, peds, packages,
+    meta: createMeta(), // respect, districts, radio, dialogue
     time: 0,
+    clockMinutes: CLOCK.startMinutes,
+    day: 1,
     wanted: 0,
     everWanted: 0,
     hiddenT: 0,
     decayT: 0,
     lastCrimeT: -100,
+    lastKnown: null, // where the PD last saw Dash (the search zone centre)
+    searchState: 'clear',
+    searchClearIn: 0,
+    searchZone: 0,
+    spotlit: false,
+    dispatch: [], // live PD units for the HUD panel
     spawnTimer: 0,
     heli: null, // the police helicopter, once the heat reaches 3 stars
     nearestPolice: Infinity,
@@ -70,13 +80,61 @@ function createGame() {
     shopOpen: false,
     nearCar: null,
     nearGarage: false,
+    // The garage catalogue. Keys 1–9 then 0. Weapons: first buy is the
+    // gun with a starter pack; buying again is an ammo pack. Tune and
+    // armour are three tiers each, fitted to every car Dash takes.
     shopItems: [
       { name: 'Full repair', price: 100, desc: 'Health + car fixed', apply: (g) => { g.player.health = 100; if (g.player.car) g.player.car.damage = 0; } },
-      { name: 'Pistol ammo x24', price: 50, desc: 'Bullets for the pistol', apply: (g) => { g.player.hasGun = true; g.player.ammo += 24; } },
-      { name: 'Gold Pelican Coupe', price: 1500, desc: 'Top speed 380, yours', apply: (g) => { g.spawnShopCar = { name: 'Gold Pelican Coupe', top: 380, color: '#e8b93a', length: 48, width: 24 }; } },
-      { name: 'Clinic patch-up', price: 80, desc: 'Health back to 100', apply: (g) => { g.player.health = 100; } },
+      { name: 'Pistol ammo x24', price: 50, desc: 'Bullets for the pistol', apply: (g) => { grantWeapon(g.player, 1, 24); } },
+      {
+        name: 'Engine tune', price: 600, desc: '+20 top speed a tier; tier 3 adds nitro',
+        tier: (g) => g.player.carUpgrades.tune, maxTier: 3,
+        apply: (g) => {
+          g.player.carUpgrades.tune = Math.min(3, g.player.carUpgrades.tune + 1);
+          fitUpgrades(g);
+          return g.player.carUpgrades.tune >= 3 ? 'Tune tier 3 — nitro fitted! Hold Shift.' : `Engine tune tier ${g.player.carUpgrades.tune} fitted.`;
+        },
+      },
+      {
+        name: 'Respray', price: 150, desc: 'New paint; unseen heat clears',
+        apply: (g) => {
+          const car = g.player.car;
+          if (car) {
+            const paints = ['#c94f42', '#3f7fb8', '#5d8a4a', '#e07b39', '#8a5f9e', '#e8e8e8', '#2b3a4d'];
+            car.color = paints[Math.floor(g.rng() * paints.length)];
+          }
+          if (g.wanted > 0 && g.nearestPolice > 600) {
+            g.wanted = 0;
+            return 'Resprayed — the PD lost your plate.';
+          }
+          return 'Resprayed. Fresh paint, same driver.';
+        },
+      },
       { name: 'Sunset Roadster', price: 2200, desc: 'Top speed 360, yours', apply: (g) => { g.spawnShopCar = CAR_MODELS[6]; } },
       { name: 'Vega Phantom', price: 3000, desc: 'Top speed 390, yours', apply: (g) => { g.spawnShopCar = CAR_MODELS[7]; } },
+      {
+        name: 'SMG', price: WEAPONS[2].price, desc: 'Fast fire, 60 rounds included',
+        owned: (g) => g.player.ownedWeapons[2], ammoPrice: WEAPONS[2].ammoPrice, ammoPack: WEAPONS[2].ammoPack,
+        apply: (g) => { grantWeapon(g.player, 2, WEAPONS[2].ammoPack); },
+      },
+      {
+        name: 'Shotgun', price: WEAPONS[3].price, desc: 'Five pellets a shell, 12 included',
+        owned: (g) => g.player.ownedWeapons[3], ammoPrice: WEAPONS[3].ammoPrice, ammoPack: WEAPONS[3].ammoPack,
+        apply: (g) => { grantWeapon(g.player, 3, WEAPONS[3].ammoPack); },
+      },
+      {
+        name: 'Rifle', price: WEAPONS[4].price, desc: 'Heavy rounds, 20 included',
+        owned: (g) => g.player.ownedWeapons[4], ammoPrice: WEAPONS[4].ammoPrice, ammoPack: WEAPONS[4].ammoPack,
+        apply: (g) => { grantWeapon(g.player, 4, WEAPONS[4].ammoPack); },
+      },
+      {
+        name: 'Armour plating', price: 800, desc: '-20% crash + bullet damage a tier',
+        tier: (g) => g.player.carUpgrades.armour, maxTier: 3,
+        apply: (g) => {
+          g.player.carUpgrades.armour = Math.min(3, g.player.carUpgrades.armour + 1);
+          return `Armour tier ${g.player.carUpgrades.armour} fitted.`;
+        },
+      },
     ],
     spawnShopCar: null,
     stats: { missionsDone: 0, carsStolen: 0, pedsHit: 0, faresDone: 0, racesWon: 0 },
@@ -87,6 +145,13 @@ function createGame() {
     player: {
       x: 1000, y: 620, angle: -Math.PI / 2, moving: false, radius: PLAYER.radius,
       health: PLAYER.health, cash: 0, ammo: 0, hasGun: false,
+      // The arsenal: slot 0 is fists; guns are bought (pistol: mission 3).
+      weaponSlot: 0,
+      ownedWeapons: [true, false, false, false, false],
+      ammoByWeapon: [0, 0, 0, 0, 0],
+      // Garage upgrades, fitted to every car Dash takes.
+      carUpgrades: { tune: 0, armour: 0 },
+      nitro: 1, // boost meter, 0..1 (tune tier 3)
       car: null, punchT: 0, punchAnim: 0, shootT: 0,
     },
   };
@@ -94,6 +159,14 @@ function createGame() {
   game.saveBest = () => saveGame(game);
   initActivities(game);
   return game;
+}
+
+/** Fit the player's garage upgrades to the car they are driving. */
+function fitUpgrades(game) {
+  const car = game.player.car;
+  if (!car) return;
+  car.topBoost = game.player.carUpgrades.tune * 20;
+  car.gripBoost = 1 + game.player.carUpgrades.tune * 0.08;
 }
 
 function readSave() {
@@ -126,6 +199,15 @@ function saveGame(game) {
       ammo: game.player.ammo,
       packages: game.packages.filter((p) => p.collected).map((p) => p.id),
       races: game.stats.racesWon || 0,
+      // v0.5.0: the street's memory and the arsenal.
+      respect: game.meta.respect,
+      standing: Object.fromEntries(Object.entries(game.meta.districts).map(([id, d]) => [id, d.standing])),
+      ownedWeapons: game.player.ownedWeapons,
+      ammoByWeapon: game.player.ammoByWeapon,
+      weaponSlot: game.player.weaponSlot,
+      carUpgrades: game.player.carUpgrades,
+      day: game.day,
+      clockMinutes: Math.floor(game.clockMinutes),
     }));
     if (game.player.cash > game.bestCash) {
       game.bestCash = game.player.cash;
@@ -138,10 +220,33 @@ function saveGame(game) {
 
 function applySave(game, data) {
   if (!data) return;
+  game.saveCash = data.cash || 0;
   game.player.cash = data.cash || 0;
   game.player.health = data.health || PLAYER.health;
-  game.player.hasGun = !!data.hasGun;
-  game.player.ammo = data.ammo || 0;
+  // Arsenal: new saves carry the whole rack; old saves only the pistol.
+  if (Array.isArray(data.ownedWeapons) && Array.isArray(data.ammoByWeapon)) {
+    game.player.ownedWeapons = data.ownedWeapons.slice(0, 5);
+    game.player.ammoByWeapon = data.ammoByWeapon.slice(0, 5);
+    game.player.weaponSlot = Math.min(4, data.weaponSlot || 0);
+    if (!game.player.ownedWeapons[game.player.weaponSlot]) game.player.weaponSlot = 0;
+  } else if (data.hasGun) {
+    game.player.ownedWeapons[1] = true;
+    game.player.ammoByWeapon[1] = data.ammo || 0;
+    game.player.weaponSlot = 1;
+  }
+  syncArsenal(game.player);
+  if (data.carUpgrades) {
+    game.player.carUpgrades.tune = Math.min(3, data.carUpgrades.tune || 0);
+    game.player.carUpgrades.armour = Math.min(3, data.carUpgrades.armour || 0);
+  }
+  game.meta.respect = data.respect || 0;
+  if (data.standing) {
+    for (const [id, value] of Object.entries(data.standing)) {
+      if (game.meta.districts[id]) game.meta.districts[id].standing = Math.max(0, Math.min(100, value));
+    }
+  }
+  game.day = data.day || 1;
+  game.clockMinutes = typeof data.clockMinutes === 'number' ? data.clockMinutes : CLOCK.startMinutes;
   game.stats.missionsDone = Math.max(0, (data.mission || 1) - 1);
   game.stats.racesWon = data.races || 0;
   game.saveMission = Math.min(MISSIONS.length, data.mission || 1);
@@ -200,9 +305,11 @@ function enterCar(game) {
   car.parked = false;
   car.speed = 0;
   player.car = car;
+  fitUpgrades(game);
   if (wasParked) {
     car.stolenByPlayer = true;
     game.stats.carsStolen += 1;
+    addRespect(game, RESPECT.steal);
     game.addWanted(WANTED.heatPerSteal);
     game.message = `Stole a ${car.model.name}. The PD noticed.`;
     game.messageT = 2.5;
@@ -217,6 +324,15 @@ function updatePlayer(game, input, dt) {
     const car = player.car;
     const throttle = move.y === 0 ? 0 : -move.y; // up (W) is forward
     const steer = move.x;
+    // Nitro (tune tier 3): Shift burns the meter for extra shove.
+    const boosting = player.carUpgrades.tune >= 3 && input.boost() && player.nitro > 0 && throttle > 0;
+    car.nitroBoost = boosting ? 70 : 0;
+    if (boosting) {
+      player.nitro = Math.max(0, player.nitro - dt * 0.35);
+      game.sparks.push({ x: car.x - Math.cos(car.angle) * 30, y: car.y - Math.sin(car.angle) * 30, t: 0.15 });
+    } else {
+      player.nitro = Math.min(1, player.nitro + dt * 0.12);
+    }
     drivePlayerCar(car, throttle, steer, dt);
     player.x = car.x;
     player.y = car.y;
@@ -269,9 +385,20 @@ function updateCamera(game, dt) {
 
 function stepWorld(game, input, dt) {
   game.time += dt;
+  // The city clock: one real second is one city minute.
+  game.clockMinutes += CLOCK.minutesPerSecond * dt;
+  if (game.clockMinutes >= 1440) {
+    game.clockMinutes -= 1440;
+    game.day += 1;
+  }
   if (game.banner && game.banner.t > 0) game.banner.t -= dt;
   if (game.messageT > 0) game.messageT -= dt;
   if (game.shake > 0) game.shake -= dt;
+  if (game.meta.dialogue) {
+    game.meta.dialogue.t -= dt;
+    if (game.meta.dialogue.t <= 0) game.meta.dialogue = null;
+  }
+  game.radioNow = updateRadio(game, dt);
 
   // Ambient life runs even on the title screen.
   updateTraffic(game.city, game.cars, game.rng, dt);
@@ -283,15 +410,31 @@ function stepWorld(game, input, dt) {
     game.message = muted ? 'Sound off' : 'Sound on';
     game.messageT = 1.5;
   }
+  if (actions & ACTION_RADIO) {
+    const station = nextStation(game);
+    game.message = `Radio: ${station.name}`;
+    game.messageT = 2;
+    audio.ensure();
+  }
+  const numbers = input.takeNumbers();
   if (game.shopOpen) {
-    const numbers = input.takeNumbers();
     numbers.forEach((code) => {
-      const index = Number(code.slice(5)) - 1;
+      const n = Number(code.slice(5));
+      const index = n === 0 ? 9 : n - 1;
       const item = game.shopItems[index];
-      if (item && game.player.cash >= item.price) {
-        game.player.cash -= item.price;
-        item.apply(game);
-        game.message = `Bought: ${item.name}`;
+      if (!item) return;
+      const isAmmo = !!(item.owned && item.owned(game));
+      const maxed = !!(item.tier && item.tier(game) >= item.maxTier);
+      const price = isAmmo ? item.ammoPrice : item.price;
+      if (maxed) {
+        game.message = `${item.name} is fully fitted.`;
+        game.messageT = 2;
+        return;
+      }
+      if (game.player.cash >= price) {
+        game.player.cash -= price;
+        const note = item.apply(game);
+        game.message = note || (isAmmo ? `${item.name} ammo +${item.ammoPack}` : `Bought: ${item.name}`);
         game.messageT = 2;
         audio.pickup();
       }
@@ -299,6 +442,11 @@ function stepWorld(game, input, dt) {
     if (actions & (ACTION_SHOP | ACTION_PAUSE)) game.shopOpen = false;
     return { actions };
   }
+  // Number keys 1–5 switch weapons when the shop is shut.
+  numbers.forEach((code) => {
+    const n = Number(code.slice(5));
+    if (n >= 1 && n <= 5) switchWeapon(game, n - 1);
+  });
 
   updatePlayer(game, input, dt);
 
@@ -382,6 +530,8 @@ function stepWorld(game, input, dt) {
   const speed01 = driving ? Math.abs(game.player.car.speed) / game.player.car.model.top : 0;
   audio.engine(speed01, driving);
   audio.siren(game.wanted > 0);
+  // The radio only plays in a car, like a real one.
+  audio.radio(game.meta.radio.station, driving);
 
   updateCamera(game, dt);
 
@@ -442,6 +592,14 @@ function runGame() {
     game.player.health = PLAYER.health;
     game.player.hasGun = false;
     game.player.ammo = 0;
+    game.player.weaponSlot = 0;
+    game.player.ownedWeapons = [true, false, false, false, false];
+    game.player.ammoByWeapon = [0, 0, 0, 0, 0];
+    game.player.carUpgrades = { tune: 0, armour: 0 };
+    game.player.nitro = 1;
+    game.meta = createMeta();
+    game.day = 1;
+    game.clockMinutes = CLOCK.startMinutes;
     game.stats.missionsDone = 0;
     game.stats.faresDone = 0;
     game.stats.racesWon = 0;
@@ -520,6 +678,8 @@ function runGame() {
   function step() {
     if (screen === SCREEN_TITLE) {
       game.time += STEP;
+      game.clockMinutes += CLOCK.minutesPerSecond * STEP;
+      if (game.clockMinutes >= 1440) { game.clockMinutes -= 1440; game.day += 1; }
       updateTraffic(game.city, game.cars, game.rng, STEP);
       updatePedestrians(game.city, game.peds, game.player, null, STEP);
       updateCamera(game, STEP);
@@ -579,7 +739,7 @@ function runGame() {
   // A small debug handle for play-testing: the game object, read-only-ish.
   window.__solmar = {
     game,
-    version: '0.4.0',
+    version: '0.5.0',
     startMission: (index) => { resetPlayerToStart(game); startMission(game, index); },
     teleport: (x, y) => {
       if (game.player.car) { game.player.car.x = x; game.player.car.y = y; game.player.car.speed = 0; }
@@ -588,6 +748,8 @@ function runGame() {
       updateCamera(game, 1);
     },
     setWanted: (n) => { game.wanted = n; },
+    setClock: (hours) => { game.clockMinutes = (hours % 24) * 60; },
+    giveWeapon: (index, ammo) => { grantWeapon(game.player, index, ammo); },
     screen: () => screen,
   };
 

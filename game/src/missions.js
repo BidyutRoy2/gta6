@@ -3,7 +3,9 @@
 // then back for one last run — and for Harlan Vega himself.
 // Each mission is a list of steps; the updater watches the world and advances
 // them, pays out on completion, and fails a mission when its timer runs out.
-import { CAR_MODELS } from './config.js';
+import { CAR_MODELS, RESPECT, STANDING } from './config.js';
+import { addRespect, addStanding, districtAt, missionSpeaker, say, stepLine } from './meta.js';
+import { grantWeapon } from './combat.js';
 
 export const MISSIONS = [
   {
@@ -127,9 +129,10 @@ export function startMission(game, index) {
   game.banner = { text: `Mission ${def.id}: ${def.name}`, sub: def.briefing, t: 5 };
   game.message = def.steps[0].text;
   game.messageT = 4;
+  say(game, missionSpeaker(def.id), def.briefing, 6);
   if (def.id === 3) {
-    game.player.hasGun = true;
-    game.player.ammo = Math.max(game.player.ammo, 24);
+    // The Club's pistol, in the glovebox: slot 2 of the arsenal.
+    grantWeapon(game.player, 1, 24);
   }
   if (def.id === 7) {
     // Vega's courier: a grey van driving the north loop.
@@ -190,6 +193,7 @@ function advanceStep(game) {
     game.message = next.text;
     game.messageT = 4;
     game.chime = true;
+    say(game, missionSpeaker(game.mission.def.id), stepLine(next.type, game.mission.step + game.mission.def.id), 3.5);
   }
 }
 
@@ -198,6 +202,12 @@ function completeMission(game) {
   game.player.cash += def.payout;
   game.mission.done = true;
   game.stats.missionsDone += 1;
+  // The street remembers: respect for the job, standing where it ended.
+  addRespect(game, RESPECT.mission);
+  const px = game.player.car ? game.player.car.x : game.player.x;
+  const py = game.player.car ? game.player.car.y : game.player.y;
+  addStanding(game, districtAt(game.city, px, py).id, STANDING.mission);
+  say(game, missionSpeaker(def.id), `Paid $${def.payout}. Good work, Dash.`, 4);
   game.banner = { text: `Mission complete: ${def.name}`, sub: `Paid $${def.payout} — total cash $${game.player.cash}`, t: 5 };
   game.chime = true;
   game.saveBest();

@@ -71,14 +71,106 @@ export const POLICE = {
 };
 
 // The police helicopter: pure spectacle, no teeth. It circles the player
-// once the heat reaches spawnWanted and leaves when the heat drops.
+// once the heat reaches spawnWanted and leaves when the heat drops. Its
+// spotlight is the one real effect: while the cone is on you, you are
+// seen — hiding does not cool the heat.
 export const HELI = {
   circleRadius: 280, // how far from the player it circles
   angularSpeed: 0.45, // radians per second around the player
   spawnWanted: 3, // appears once the heat reaches this many stars
+  spotRadius: 150, // the lit circle on the ground
+  spotLag: 1.4, // how fast the cone chases the player (per second)
 };
 
 export const BULLET = { speed: 720, life: 0.9, damage: 34 };
+
+// The arsenal: five slots, bought at the Solmar Garage. Slot 1 is fists
+// (the punch), slot 2 is the pistol the Marlin Club hands over in mission
+// 3; the rest are locked until bought. Damage is per bullet; the shotgun
+// fires `pellets` spread bullets per shell.
+export const WEAPONS = [
+  { id: 'fists', name: 'Fists', short: 'FISTS', damage: 0, pellets: 1, cooldown: 0.35, price: 0, ammoPack: 0, ammoPrice: 0 },
+  { id: 'pistol', name: 'Pistol', short: 'PISTOL', damage: 34, pellets: 1, cooldown: 0.28, price: 0, ammoPack: 24, ammoPrice: 50 },
+  { id: 'smg', name: 'SMG', short: 'SMG', damage: 16, pellets: 1, cooldown: 0.09, price: 900, ammoPack: 60, ammoPrice: 90 },
+  { id: 'shotgun', name: 'Shotgun', short: '12G', damage: 13, pellets: 5, cooldown: 0.8, price: 1600, ammoPack: 12, ammoPrice: 110 },
+  { id: 'rifle', name: 'Rifle', short: 'RIFLE', damage: 62, pellets: 1, cooldown: 0.5, price: 3200, ammoPack: 20, ammoPrice: 160 },
+];
+
+// Respect: the street's memory of Dash. XP comes from missions, races,
+// packages, fares and stolen cars; the rank name and bar sit in the HUD.
+export const RANKS = [
+  { name: 'Errand Runner', xp: 0 },
+  { name: 'Hustler', xp: 100 },
+  { name: 'Wheelman', xp: 250 },
+  { name: 'Fixer', xp: 450 },
+  { name: 'Shot Caller', xp: 700 },
+  { name: 'Tide Boss', xp: 1000 },
+];
+
+export const RESPECT = {
+  mission: 60,
+  raceWin: 40,
+  checkpoint: 10,
+  package: 15,
+  fare: 10,
+  steal: 5,
+};
+
+// The five districts of Solmar. Standing is how much the district rates
+// Dash (0–100, starts neutral); work done in a district raises it.
+export const DISTRICTS = [
+  { id: 'northgate', name: 'Northgate', tint: 'rgba(232,185,58,0.10)' },
+  { id: 'marina', name: 'Marina Flats', tint: 'rgba(63,127,184,0.10)' },
+  { id: 'cannery', name: 'Old Cannery', tint: 'rgba(176,86,63,0.10)' },
+  { id: 'harbor', name: 'Harborfront', tint: 'rgba(95,125,138,0.10)' },
+  { id: 'strand', name: 'The Strand', tint: 'rgba(227,205,154,0.12)' },
+];
+
+export const STANDING = { start: 50, mission: 4, package: 3, fare: 2, raceWin: 3 };
+
+// Radio: three stations, synthesised live like every other sound here.
+// Tracks rotate; the HUD line names station and track, R switches.
+export const RADIO = {
+  stations: [
+    {
+      name: 'SOLMAR FM 98.6', wave: 'sawtooth', tempo: 112, root: 220,
+      scale: [0, 3, 5, 7, 10, 12],
+      tracks: ['Neon Tide — Palm Static', 'Dash Cole — Golden Hour Run', 'Vega Nights — Marina Lights'],
+    },
+    {
+      name: 'RADIO MARLIN 99.1', wave: 'square', tempo: 96, root: 196,
+      scale: [0, 2, 4, 7, 9, 12],
+      tracks: ['Kip Sorrento — Arepa Lights', 'La Marea — Dockside', 'Club Marlin — Last Tide'],
+    },
+    {
+      name: 'HARBOR 101.3', wave: 'triangle', tempo: 84, root: 174,
+      scale: [0, 2, 3, 7, 8, 12],
+      tracks: ['Old Cannery — Slow Water', 'Strandline — Beach Radio', 'Night Ferry — South Beach'],
+    },
+  ],
+  trackSeconds: 32,
+};
+
+// The city clock: minutes since midnight. One real second is one city
+// minute, so a full day runs about 24 minutes of play.
+export const CLOCK = {
+  startMinutes: 10 * 60, // 10:00 on day 1
+  minutesPerSecond: 1,
+  dawnStart: 5.5 * 60,
+  dayStart: 6.5 * 60,
+  sunsetStart: 17 * 60,
+  nightStart: 19.5 * 60,
+};
+
+// Police dispatch: unit callsigns and the tactics each unit can be given.
+// A tactic is not a label — it changes where the unit steers.
+export const DISPATCH = {
+  callsigns: ['PD-1', 'PD-2', 'PD-3', 'PD-4', 'PD-5', 'PD-6'],
+  airUnit: 'AIR-1',
+  metresPerPixel: 1 / 8, // distances on the panel are in metres
+  roadblockMinWanted: 4,
+  roadblockAhead: 520, // how far ahead of the player the block sits
+};
 
 // Side activities: taxi fares and hidden packages.
 export const TAXI = {

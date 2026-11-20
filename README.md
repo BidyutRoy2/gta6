@@ -27,15 +27,26 @@ Taxi), hunting ten hidden packages worth $100 each, and racing the white
 ring on the north road for up to $1,450 a win in the Vega Phantom, the
 fastest car in the city.
 
+Around that core sits a living city: five weapon slots (fists, pistol, SMG,
+shotgun, rifle — bought at the garage), a respect rank that grows with every
+job, five districts that remember the work you do in them, a police dispatch
+panel that names every unit chasing you and the tactic it is driving
+(pursuit, ramming, flanking, roadblocks, searching), a helicopter whose
+spotlight keeps the heat on you, three radio stations synthesised live, a
+full day/night cycle with a city clock, and a pause map that tracks the
+story, your career and the districts' standing.
+
 ## How to play
 
 - **WASD / arrows** — walk on foot; drive once you are in a car
 - **E** — get in or out of a car (step up to a parked car to steal it)
 - **Mouse click** — fire your weapon (you get a pistol from Mission 3)
+- **1–5** — switch weapons (SMG, shotgun and rifle are bought at the garage)
 - **F** — punch
 - **T** — taxi fares (drive a Solmar Taxi to pick up a waiting fare)
 - **B** — open the garage shop (stand near the garage marker)
-- **P / Esc** — pause, **M** — mute
+- **R** — change radio station (in a car), **Shift** — nitro (engine tune tier 3)
+- **P / Esc** — pause map, **M** — mute
 
 You take the missions in order from the start screen. The cash you earn can
 be spent on upgrades. Shake off the police to bring your wanted level back
@@ -52,7 +63,7 @@ no libraries — everything under `game/` is plain static files.
 
 ## Screenshots
 
-`?shot=cover|race|mission|menu&seed=7` sets up repeatable scenes of the
+`?shot=cover|shootout|garage|pause&seed=7` sets up repeatable scenes of the
 game for taking screenshots; `shots.json` lists the four shots that ship
 with the repo.
 

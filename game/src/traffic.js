@@ -98,10 +98,12 @@ function carOverlaps(a, b) {
   return dist < (a.length + b.length) / 2 - 6 && dist < 70;
 }
 
-/** Drive one car with player input: throttle -1..1, steer -1..1. */
+/** Drive one car with player input: throttle -1..1, steer -1..1.
+ * Garage upgrades ride on the car: topBoost (tune), gripBoost (tune),
+ * nitroBoost (tier-3 nitro while it burns). */
 export function drivePlayerCar(car, throttle, steer, dt) {
-  const top = car.model.top;
-  if (throttle > 0) car.speed += CAR.accel * throttle * dt;
+  const top = car.model.top + (car.topBoost || 0) + (car.nitroBoost || 0);
+  if (throttle > 0) car.speed += CAR.accel * throttle * dt * (car.nitroBoost ? 1.7 : 1);
   else if (throttle < 0) {
     if (car.speed > 5) car.speed -= CAR.brake * dt;
     else car.speed -= CAR.reverseAccel * dt;
@@ -110,7 +112,7 @@ export function drivePlayerCar(car, throttle, steer, dt) {
     if (Math.abs(car.speed) < 4) car.speed = 0;
   }
   car.speed = Math.max(-CAR.maxReverse, Math.min(top, car.speed));
-  const turnRate = CAR.grip * Math.min(1, Math.abs(car.speed) / 120);
+  const turnRate = CAR.grip * (car.gripBoost || 1) * Math.min(1, Math.abs(car.speed) / 120);
   car.angle += steer * turnRate * dt * (car.speed >= 0 ? 1 : -1);
   const nx = car.x + Math.cos(car.angle) * car.speed * dt;
   const ny = car.y + Math.sin(car.angle) * car.speed * dt;

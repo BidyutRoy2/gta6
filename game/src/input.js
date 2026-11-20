@@ -10,6 +10,7 @@ export const ACTION_SHOP = 16;
 export const ACTION_MUTE = 32;
 export const ACTION_SHOOT = 64;
 export const ACTION_TAXI = 128;
+export const ACTION_RADIO = 256;
 
 const UP = new Set(['ArrowUp', 'KeyW']);
 const DOWN = new Set(['ArrowDown', 'KeyS']);
@@ -22,6 +23,7 @@ const PUNCH = new Set(['KeyF']);
 const SHOP = new Set(['KeyB']);
 const TAXI = new Set(['KeyT']);
 const MUTE = new Set(['KeyM']);
+const RADIO = new Set(['KeyR']);
 
 export function createInput(canvas) {
   const held = new Set();
@@ -37,6 +39,7 @@ export function createInput(canvas) {
   }
 
   window.addEventListener('keydown', (event) => {
+    if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') held.add(event.code);
     if (UP.has(event.code) || DOWN.has(event.code) || LEFT.has(event.code) || RIGHT.has(event.code)) {
       held.add(event.code);
       event.preventDefault();
@@ -47,12 +50,13 @@ export function createInput(canvas) {
     else if (SHOP.has(event.code)) queue(ACTION_SHOP, event);
     else if (TAXI.has(event.code)) queue(ACTION_TAXI, event);
     else if (MUTE.has(event.code)) queue(ACTION_MUTE, event);
-    else if (/^Digit[1-9]$/.test(event.code)) numberKeys.add(event.code);
+    else if (RADIO.has(event.code)) queue(ACTION_RADIO, event);
+    else if (/^Digit[0-9]$/.test(event.code)) numberKeys.add(event.code);
     if (event.code === 'KeyS' && !event.repeat) newGame = true;
   });
   window.addEventListener('keyup', (event) => {
     held.delete(event.code);
-    if (/^Digit[1-9]$/.test(event.code)) numberKeys.delete(event.code);
+    if (/^Digit[0-9]$/.test(event.code)) numberKeys.delete(event.code);
   });
   window.addEventListener('blur', () => {
     held.clear();
@@ -85,6 +89,10 @@ export function createInput(canvas) {
         x: (has(RIGHT) ? 1 : 0) - (has(LEFT) ? 1 : 0),
         y: (has(DOWN) ? 1 : 0) - (has(UP) ? 1 : 0),
       };
+    },
+    /** Nitro boost held (either Shift key). */
+    boost() {
+      return held.has('ShiftLeft') || held.has('ShiftRight');
     },
     takeActions() {
       const taken = actions;

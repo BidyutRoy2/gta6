@@ -3,8 +3,9 @@
 // races from the white ring on the north road. All pay cash, all show on
 // the HUD and the minimap, and all run on the game's seeded RNG — no wall
 // clock, no Math.random.
-import { PACKAGES, RACE, TAXI } from './config.js';
+import { PACKAGES, RACE, RESPECT, STANDING, TAXI } from './config.js';
 import { hitsBuilding, randomRoadPoint } from './world.js';
+import { addRespect, addStanding, districtAt } from './meta.js';
 
 // Taxi stands: named places a fare can start or end at.
 const TAXI_STANDS = ['depot', 'garage', 'club', 'dock', 'hospital', 'bank', 'dropA', 'dropB', 'vault'];
@@ -85,6 +86,8 @@ export function updateActivities(game, dt) {
       const fare = game.taxi.fare;
       player.cash += fare;
       game.stats.faresDone = (game.stats.faresDone || 0) + 1;
+      addRespect(game, RESPECT.fare);
+      addStanding(game, districtAt(game.city, game.taxi.dropoff.x, game.taxi.dropoff.y).id, STANDING.fare);
       game.taxi.state = 'idle';
       game.taxi.pickup = null;
       game.taxi.dropoff = null;
@@ -104,6 +107,8 @@ export function updateActivities(game, dt) {
       pkg.collected = true;
       game.packagesCollected += 1;
       player.cash += PACKAGES.value;
+      addRespect(game, RESPECT.package);
+      addStanding(game, districtAt(game.city, pkg.x, pkg.y).id, STANDING.package);
       game.chime = true;
       game.message = `Hidden package found! +$${PACKAGES.value} (${game.packagesCollected}/${PACKAGES.count})`;
       game.messageT = 3;
@@ -162,6 +167,7 @@ function updateRace(game, dt, px, py) {
     if (race.next < RACE.checkpoints.length) {
       race.next += 1;
       game.player.cash += RACE.perCheckpoint;
+      addRespect(game, RESPECT.checkpoint);
       game.chime = true;
       game.message = race.next < RACE.checkpoints.length
         ? `Checkpoint ${race.next}/3! +$${RACE.perCheckpoint} — next one is marked.`
@@ -175,6 +181,8 @@ function updateRace(game, dt, px, py) {
       race.cooldown = RACE.cooldown;
       game.player.cash += RACE.finishBonus;
       game.stats.racesWon = (game.stats.racesWon || 0) + 1;
+      addRespect(game, RESPECT.raceWin);
+      addStanding(game, districtAt(game.city, px, py).id, STANDING.raceWin);
       game.banner = { text: 'Street race won!', sub: `+$${RACE.finishBonus} — ${game.stats.racesWon} race${game.stats.racesWon === 1 ? '' : 's'} won`, t: 5 };
       game.chime = true;
       game.saveBest();
